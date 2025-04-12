@@ -51,6 +51,19 @@ def draw_pieces(screen, board):
                 image = PIECE_IMAGES[piece.image[:-4]]  # f.eks. "wP"
                 screen.blit(image, (col * SQUARE_SIZE, row * SQUARE_SIZE))
 
+# Markér de mulige træk
+def draw_possible_moves(screen, possible_moves):
+    for move in possible_moves:
+        row, col = move
+        pygame.draw.circle(screen, (0, 255, 0), (col * SQUARE_SIZE + SQUARE_SIZE // 2, row * SQUARE_SIZE + SQUARE_SIZE // 2), 20)
+
+# Håndter musens klik
+def get_square_under_mouse():
+    mouse_x, mouse_y = pygame.mouse.get_pos()
+    row = mouse_y // SQUARE_SIZE
+    col = mouse_x // SQUARE_SIZE
+    return row, col
+
 # Main loop
 def main():
     pygame.init()
@@ -61,18 +74,42 @@ def main():
     board = initialize_board()
     load_images()
 
+    selected_piece = None  # Nu gemmer vi både position og brik som en tuple (row, col, piece)
+    possible_moves = []
+    
     running = True
     while running:
         draw_board(screen)
         draw_pieces(screen, board)
+        draw_possible_moves(screen, possible_moves)
+        
         pygame.display.flip()
         clock.tick(60)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                row, col = get_square_under_mouse()
+                piece = board[row][col]
+
+                # Hvis en brik er valgt
+                if selected_piece:
+                    # Hvis valget er et muligt træk
+                    if (row, col) in possible_moves:
+                        # Flyt brikken
+                        board[row][col] = selected_piece[2]  # Brug brikken fra selected_piece
+                        board[selected_piece[0]][selected_piece[1]] = None  # Fjern brikken fra dens gamle position
+                    selected_piece = None
+                    possible_moves = []
+                elif piece:
+                    # Hvis der er en brik, skal vi vælge den og vise de mulige træk
+                    selected_piece = (row, col, piece)  # Gem både positionen og objektet
+                    possible_moves = piece.get_possible_moves(board, row, col)
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
