@@ -76,3 +76,4 @@ if __name__ == "__main__":
     main()
 
 # Mangler at tilføjet funktionalitet til nyt spil, og vilkårlig startopstilling
+# Mangler tid til hvert træk
