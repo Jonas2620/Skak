@@ -1,5 +1,6 @@
 import pygame
 import os
+from skakPieces import Pawn, Rook, Knight, Bishop, Queen, King
 
 # Skærmindstillinger
 WIDTH, HEIGHT = 640, 640
@@ -13,17 +14,17 @@ DARK = (118, 150, 86)
 # Dictionary til brikbilleder
 PIECE_IMAGES = {}
 
-# Funktion til at oprette bræt
+# Funktion til at oprette skakbrættet
 def initialize_board():
     return [
-        ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"],
-        ["bP"] * 8,
-        [""] * 8,
-        [""] * 8,
-        [""] * 8,
-        [""] * 8,
-        ["wP"] * 8,
-        ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
+        [Rook('b'), Knight('b'), Bishop('b'), Queen('b'), King('b'), Bishop('b'), Knight('b'), Rook('b')],
+        [Pawn('b'), Pawn('b'), Pawn('b'), Pawn('b'), Pawn('b'), Pawn('b'), Pawn('b'), Pawn('b')],
+        [None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, None, None, None],
+        [Pawn('w'), Pawn('w'), Pawn('w'), Pawn('w'), Pawn('w'), Pawn('w'), Pawn('w'), Pawn('w')],
+        [Rook('w'), Knight('w'), Bishop('w'), Queen('w'), King('w'), Bishop('w'), Knight('w'), Rook('w')],
     ]
 
 # Henter og skalerer billeder
@@ -43,11 +44,12 @@ def draw_board(screen):
 
 # Tegn brikkerne
 def draw_pieces(screen, board):
-    for row in range(ROWS):
-        for col in range(COLS):
+    for row in range(8):
+        for col in range(8):
             piece = board[row][col]
-            if piece != "":
-                screen.blit(PIECE_IMAGES[piece], (col * SQUARE_SIZE, row * SQUARE_SIZE))
+            if piece:
+                image = PIECE_IMAGES[piece.image[:-4]]  # f.eks. "wP"
+                screen.blit(image, (col * SQUARE_SIZE, row * SQUARE_SIZE))
 
 # Main loop
 def main():
@@ -74,8 +76,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# Mangler at tilføjet funktionalitet til nyt spil, og vilkårlig startopstilling
-# Mangler tid til hvert træk
-
