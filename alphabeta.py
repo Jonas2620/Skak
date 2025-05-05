@@ -51,14 +51,14 @@ class ChessAI:
 
         return best_move
     
-    #prioritize moves for better search
+    #prio moves for better search
     def evaluate_move_priority(self, board, move, color):
         """Estimate move priority for move ordering, prioritizing checks and captures"""
         r1, c1, r2, c2 = move
         piece = board[r1][c1]
         target = board[r2][c2]
         
-        #base priority on gain/loss
+        #base prio on gain/loss
         priority = 0
         if target:
             priority += 10 * self.piece_value_raw(target)
@@ -74,19 +74,46 @@ class ChessAI:
         if opponent_king_pos and self.is_in_check(new_board, opponent_king_pos, opponent_color):
             priority += 1000
             
-            #higher priority if its checkmate
+            #higher prio if its checkmate
             if not self.has_legal_moves(new_board, opponent_color):
                 priority += 10000
+
         return priority
+    
+
+    def evaluate_board_after_move(self, board, move):
+        # Simulate the move and evaluate the board position after it
+        new_board, _ = self.make_move(deepcopy(board), move)
+        return self.evaluate_board(new_board)
 
 
-        if depth == 0 or self.is_game_over(board):
+    def alphabeta(self, board, depth, alpha, beta, maximizing):
+        board_key = self.board_to_key(board)
+        if board_key in self.cache:
+            return self.cache[board_key]
+
+        #check for checkmate/stalemate
+        if self.is_game_over(board):
+            white_king_pos = self.find_king(board, 'w')
+            black_king_pos = self.find_king(board, 'b')
+
+            if white_king_pos and self.is_in_check(board, white_king_pos, 'w') and not self.has_legal_moves(board, 'w'):
+                return -self.CHECKMATE_SCORE  #black wins
+            elif black_king_pos and self.is_in_check(board, black_king_pos, 'b') and not self.has_legal_moves(board, 'b'):
+                return self.CHECKMATE_SCORE   #white wins
+            else:
+                return 0 #stalemate
+        
+        if depth == 0:
             eval = self.evaluate_board(board)
             self.cache[board_key] = eval
             return eval
 
         color = 'w' if maximizing else 'b'
         moves = self.get_all_moves(board, color)
+        
+        #sort for better pruning
+        moves.sort(key=lambda move: self.evaluate_move_priority(board, move, color), reverse=maximizing)
 
         if maximizing:
             max_eval = -math.inf
@@ -135,14 +162,78 @@ class ChessAI:
         return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
 
     def evaluate_board(self, board):
-        value = 0
+        """
+        Evaluate the board position with an enhanced scoring system
+        that prioritizes checkmate threats, checks, and piece mobility
+        """
+        material_value = 0
+        positional_value = 0
+        check_value = 0
+        mobility_value = 0
+        attack_value = 0
+        
+        # Count material and positional value
         for r, row in enumerate(board):
             for c, p in enumerate(row):
                 if p:
-                    value += self.piece_value(p)
+                    material_value += self.piece_value(p)
                     # Adding center control bonus for position
-                    value += self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
-        return value
+                    positional_value += self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
+        
+        #ceck if kings are in check
+        white_king_pos = self.find_king(board, 'w')
+        black_king_pos = self.find_king(board, 'b')
+        
+        if white_king_pos and self.is_in_check(board, white_king_pos, 'w'):
+            check_value -= self.CHECK_BONUS  # Bad for white
+        
+        if black_king_pos and self.is_in_check(board, black_king_pos, 'b'):
+            check_value += self.CHECK_BONUS  # Good for white
+        
+        #check for checkmate
+        if white_king_pos and self.is_in_check(board, white_king_pos, 'w') and not self.has_legal_moves(board, 'w'):
+            return -self.CHECKMATE_SCORE  #black wins
+        
+        if black_king_pos and self.is_in_check(board, black_king_pos, 'b') and not self.has_legal_moves(board, 'b'):
+            return self.CHECKMATE_SCORE   #white wins
+        
+        #calculate mobility
+        white_mobility = len(self.get_all_moves(board, 'w'))
+        black_mobility = len(self.get_all_moves(board, 'b'))
+        mobility_value = (white_mobility - black_mobility) * self.MOBILITY_WEIGHT
+        
+        #count attacks on opponent pieces
+        white_attacks = self.count_attacked_pieces(board, 'w', 'b')
+        black_attacks = self.count_attacked_pieces(board, 'b', 'w')
+        attack_value = (white_attacks - black_attacks) * self.ATTACK_BONUS
+        
+        total_evaluation = material_value + positional_value + check_value + mobility_value + attack_value
+        
+        return total_evaluation
+    
+    #count attacked pieces
+    def count_attacked_pieces(self, board, attacker_color, target_color):
+        """Count how many pieces of target_color are under attack by attacker_color"""
+        attacked_count = 0
+        
+        #find all pieces of target_color
+        target_pieces = []
+        for r in range(8):
+            for c in range(8):
+                if board[r][c] and board[r][c].color == target_color:
+                    target_pieces.append((r, c))
+        
+        #check which are attacked
+        for r in range(8):
+            for c in range(8):
+                piece = board[r][c]
+                if piece and piece.color == attacker_color:
+                    attacks = piece.get_possible_moves(board, r, c)
+                    for target in target_pieces:
+                        if target in attacks:
+                            attacked_count += 1
+        
+        return attacked_count
 
     def piece_value(self, piece):
         values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 1000000}
@@ -154,21 +245,17 @@ class ChessAI:
             for c, p in enumerate(row):
                 if p and p.color == color:
                     for move in p.get_possible_moves(board, r, c):
-                        moves.append((r, c, move[0], move[1]))
+                         #only add legal moves that dont put king in check
+                        new_board, undo_data = self.make_move(deepcopy(board), (r, c, move[0], move[1]), return_undo=True)
+                        king_pos = self.find_king(new_board, color)
+                        if king_pos and not self.is_in_check(new_board, king_pos, color):
+                            moves.append((r, c, move[0], move[1]))
         return moves
 
     def is_game_over(self, board):
-        white_king_position = None
-        black_king_position = None
-
-        for row in range(8):
-            for col in range(8):
-                piece = board[row][col]
-                if piece and piece.name == "K":
-                    if piece.color == "w":
-                        white_king_position = (row, col)
-                    elif piece.color == "b":
-                        black_king_position = (row, col)
+        #rewrote for-loop to this
+        white_king_position = self.find_king(board, 'w')
+        black_king_position = self.find_king(board, 'b')
 
         if not white_king_position or not black_king_position:
             return True
@@ -176,6 +263,9 @@ class ChessAI:
         if self.is_in_check(board, white_king_position, 'w') and not self.has_legal_moves(board, 'w'):
             return True
         if self.is_in_check(board, black_king_position, 'b') and not self.has_legal_moves(board, 'b'):
+            return True
+        #added check for stalemate
+        if not self.has_legal_moves(board, 'w') or not self.has_legal_moves(board, 'b'):
             return True
 
         return False
