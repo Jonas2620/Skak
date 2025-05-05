@@ -132,7 +132,7 @@ def main():
 
     while True:
         board = initialize_board()
-        ai = ChessAI(depth=3)
+        ai = ChessAI(depth=4)
 
         selected_piece = None
         possible_moves = []
@@ -165,7 +165,13 @@ def main():
                     return
 
             if not human_turn:
-                best_move = ai.get_best_move(board, 'b')
+                start_time = pygame.time.get_ticks()  # Start tid
+
+                # AI beregner bedst muligt træk inden for 1 sekund
+                while pygame.time.get_ticks() - start_time < 3000:  # Maks 1 sekund
+                  best_move = ai.get_best_move(board, 'b')
+                  if best_move:
+                    break  # Stop hvis AI'en har fundet et træk               
                 if best_move:
                     r1, c1, r2, c2 = best_move
                     board[r2][c2] = board[r1][c1]
