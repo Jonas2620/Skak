@@ -104,14 +104,24 @@ class ChessAI:
         for r, row in enumerate(board):
             for c, p in enumerate(row):
                 if p:
-                     base_value = self.piece_value(p)
-                     position_bonus = self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
-                     threat_penalty = self.threat_penalty(board, r, c, p)
-                     value += base_value + position_bonus - threat_penalty
-
-
+                    base_value = self.piece_value(p)
+                    position_bonus = self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
+                    threat_penalty = self.threat_penalty(board, r, c, p)
+                    protection_bonus = self.calculate_protection_bonus(board, r, c, p)
+                    value += base_value + position_bonus - threat_penalty + protection_bonus
         return value
-    
+
+    def calculate_protection_bonus(self, board, r, c, piece):
+        bonus = 0
+        # Check if the piece is protected by another piece (simple example)
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if 0 <= r + i < 8 and 0 <= c + j < 8:
+                    adjacent_piece = board[r + i][c + j]
+                    if adjacent_piece and adjacent_piece.color == piece.color:
+                        bonus += 0.5  # Small bonus for being protected
+        return bonus
+
     def threat_penalty(self, board, r, c, piece):
         penalty = 0
         opponent_color = 'b' if piece.color == 'w' else 'w'
@@ -124,7 +134,6 @@ class ChessAI:
                         break
         return penalty
 
-
     def piece_value(self, piece):
         values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 1000000}
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
@@ -135,7 +144,18 @@ class ChessAI:
             for c, p in enumerate(row):
                 if p and p.color == color:
                     for move in p.get_possible_moves(board, r, c):
-                        moves.append((r, c, move[0], move[1]))
+                        # Simuler trækket midlertidigt på et kopibræt
+                        temp_board, _ = self.make_move(deepcopy(board), (r, c, move[0], move[1]))
+
+                        # Find kongens position på det opdaterede bræt
+                        king_pos = self.find_king(temp_board, color)
+
+                        # Hvis kongen ikke er i skak efter trækket, er det et gyldigt træk
+                        if king_pos and not self.is_in_check(temp_board, king_pos, color):
+                            # Evaluerer ikke kun træk, men er det stadig en lovlig position for kongen
+                            if self.is_in_check(temp_board, king_pos, color):
+                                continue
+                            moves.append((r, c, move[0], move[1]))
         return moves
 
     def is_game_over(self, board):
