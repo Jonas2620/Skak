@@ -85,16 +85,16 @@ class ChessAI:
 
         undo_data = None
         if return_undo:
-            undo_data = (r1, c1, piece, target)
+            undo_data = (r1, c1, r2, c2, piece, target)
 
         board[r2][c2] = piece
         board[r1][c1] = None
         return board, undo_data
 
     def undo_move(self, board, undo_data):
-        r1, c1, piece, target = undo_data
+        r1, c1, r2, c2, piece, target = undo_data
         board[r1][c1] = piece
-        board[undo_data[2]][undo_data[3]] = target
+        board[r2][c2] = target
 
     def board_to_key(self, board):
         return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
@@ -107,8 +107,9 @@ class ChessAI:
                      base_value = self.piece_value(p)
                      position_bonus = self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
                      threat_penalty = self.threat_penalty(board, r, c, p)
+                     value += base_value + position_bonus - threat_penalty
 
-                value += base_value + position_bonus - threat_penalty
+
         return value
     
     def threat_penalty(self, board, r, c, piece):
