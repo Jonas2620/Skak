@@ -104,10 +104,25 @@ class ChessAI:
         for r, row in enumerate(board):
             for c, p in enumerate(row):
                 if p:
-                    value += self.piece_value(p)
-                    # Adding center control bonus for position
-                    value += self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
+                     base_value = self.piece_value(p)
+                     position_bonus = self.CENTER_CONTROL_BONUS[r][c] if p.color == 'w' else -self.CENTER_CONTROL_BONUS[r][c]
+                     threat_penalty = self.threat_penalty(board, r, c, p)
+
+                value += base_value + position_bonus - threat_penalty
         return value
+    
+    def threat_penalty(self, board, r, c, piece):
+        penalty = 0
+        opponent_color = 'b' if piece.color == 'w' else 'w'
+        for row in range(8):
+            for col in range(8):
+                attacker = board[row][col]
+                if attacker and attacker.color == opponent_color:
+                    if (r, c) in attacker.get_possible_moves(board, row, col):
+                        penalty += abs(self.piece_value(piece)) * 0.5
+                        break
+        return penalty
+
 
     def piece_value(self, piece):
         values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 1000000}
