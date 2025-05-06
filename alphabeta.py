@@ -27,11 +27,11 @@ class ChessAI:
         """
         best_move = None
         start_time = time.time()
-        max_time = 2.0  # maks tid i sekunder
+        max_time = 15.0  # maks tid i sekunder
 
         # Iterative deepening for at bruge tid effektivt
         for d in range(1, self.depth + 1):
-            self.depth = d
+            
             move = self._search_best_move(board, color)
             if move:
                 best_move = move
