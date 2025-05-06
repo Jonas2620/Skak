@@ -204,7 +204,7 @@ class ChessAI:
         """
         Materiel værdi: dronning vægtet højere for beskyttelse.
         """
-        values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 100, 'K': 1000000}  # 🟢 dronningsværdi hævet
+        values = {'P': 1, 'N': 15, 'B': 30, 'R': 50, 'Q': 100, 'K': 500}  # 🟢 dronningsværdi hævet
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
 
     def get_all_moves(self, board, color):
