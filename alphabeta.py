@@ -1,15 +1,12 @@
 import math
 from copy import deepcopy
 import threading
-import time  # added for iterative deepening and time control
 
 class ChessAI:
-    def __init__(self, depth=6):
-        # Initialisering af AI med cache og maksimal søgedybde
-        self.cache = {}  # Transposition table
+    def __init__(self, depth=4):
+        self.cache = {}
         self.depth = depth
-
-        # Bonus for at kontrollere centrum af brættet (strategisk vigtigt)
+        # Forbedret vægtning af brikkernes værdi på brættet
         self.CENTER_CONTROL_BONUS = [
             [0, 0, 5, 5, 5, 5, 0, 0],
             [0, 5, 10, 10, 10, 10, 5, 0],
@@ -20,271 +17,254 @@ class ChessAI:
             [0, 5, 10, 10, 10, 10, 5, 0],
             [0, 0, 5, 5, 5, 5, 0, 0],
         ]
+        # Tilføjet værdier for bønders position (bedre at have bønder fremme)
+        self.PAWN_ADVANCEMENT = [
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [10, 10, 20, 30, 30, 20, 10, 10],
+            [5, 5, 10, 25, 25, 10, 5, 5],
+            [0, 0, 0, 20, 20, 0, 0, 0],
+            [5, -5, -10, 0, 0, -10, -5, 5],
+            [5, 10, 10, -20, -20, 10, 10, 5],
+            [0, 0, 0, 0, 0, 0, 0, 0]
+        ]
+        # Cache for at gemme kongepositioner
+        self.king_positions_cache = {}
 
     def get_best_move(self, board, color):
-        """
-        Beregner det bedste træk ved hjælp af iterative deepening og alpha-beta.
-        """
-        best_move = None
-        start_time = time.time()
-        max_time = 15.0  # maks tid i sekunder
-
-        # Iterative deepening for at bruge tid effektivt
-        for d in range(1, self.depth + 1):
-            
-            move = self._search_best_move(board, color)
-            if move:
-                best_move = move
-            # Stop hvis tidsgrænsen er nået
-            if time.time() - start_time > max_time:
-                break
-        return best_move
-
-    def _search_best_move(self, board, color):
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
 
-        # Hent og sorter træk (move ordering optimerer alpha-beta)
         moves = self.get_all_moves(board, color)
-        moves.sort(key=lambda m: self.evaluate_board_after_move(board, m), reverse=(color=='w'))
+        if not moves:
+            return None  # Ingen træk tilgængelige
+
+        # Sort moves based on their estimated value to improve alpha-beta pruning
+        moves.sort(key=lambda move: self.evaluate_board_after_move(board, move), reverse=(color == 'w'))
 
         for move in moves:
-            new_board, undo = self.make_move(board, move, return_undo=True)
-            eval = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, color == 'w')
-            self.undo_move(new_board, undo)
+            new_board, _ = self.make_move(deepcopy(board), move)
+            eval = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, maximizing=(color != 'w'))
 
             if (color == 'w' and eval > best_eval) or (color == 'b' and eval < best_eval):
                 best_eval = eval
                 best_move = move
+
         return best_move
 
-    def alphabeta(self, board, depth, alpha, beta, maximizing):
-        """
-        Alpha-beta beskæring for Minimax.
-        """
-        key = self.board_to_key(board)
-        if key in self.cache:
-            return self.cache[key]
-
-        if depth == 0 or self.is_game_over(board):
-            value = self.evaluate_board(board)
-            self.cache[key] = value
-            return value
-
-        color = 'w' if maximizing else 'b'
-        # Move ordering i alphabeta
-        moves = self.get_all_moves(board, color)
-        moves.sort(key=lambda m: self.evaluate_board_after_move(board, m), reverse=maximizing)
-
-        if maximizing:
-            value = -math.inf
-            for move in moves:
-                new_board, undo = self.make_move(board, move, return_undo=True)
-                score = self.alphabeta(new_board, depth-1, alpha, beta, False)
-                self.undo_move(new_board, undo)
-                value = max(value, score)
-                alpha = max(alpha, score)
-                if alpha >= beta:
-                    break  # Beta cutoff
-        else:
-            value = math.inf
-            for move in moves:
-                new_board, undo = self.make_move(board, move, return_undo=True)
-                score = self.alphabeta(new_board, depth-1, alpha, beta, True)
-                self.undo_move(new_board, undo)
-                value = min(value, score)
-                beta = min(beta, score)
-                if beta <= alpha:
-                    break  # Alpha cutoff
-
-        self.cache[key] = value
-        return value
-
-    def make_move(self, board, move, return_undo=False):
-        """
-        Udfører et træk på brættet og returnerer undo-data.
-        """
-        r1, c1, r2, c2 = move
-        piece = board[r1][c1]
-        target = board[r2][c2]
-        undo_data = None
-        if return_undo:
-            undo_data = (r1, c1, r2, c2, piece, target)
-        board[r2][c2] = piece
-        board[r1][c1] = None
-        return board, undo_data
-
-    def undo_move(self, board, undo_data):
-        """
-        Fortryder et tidligere træk.
-        """
-        r1, c1, r2, c2, piece, target = undo_data
-        board[r1][c1] = piece
-        board[r2][c2] = target
-
-    def board_to_key(self, board):
-        """
-        Konverterer brættet til en nøgle til caching.
-        """
-        return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
-
-    def evaluate_board(self, board):
-        """
-        Evaluering med strategiske faktorer: centerkontrol, mobilitet, sikkerhed.
-        """
-        value = 0
-        for r, row in enumerate(board):
-            for c, p in enumerate(row):
-                if p:
-                    base = self.piece_value(p)
-                    # Pionforfremmelsespotentiale
-                    if p.name.upper() == 'P':
-                        base += (7 - r) * 0.1 if p.color=='w' else r * 0.1
-                    # Kongesikkerhed: straf for angreb nær kongen
-                    king_penalty = 0
-                    if p.name.upper() == 'K':
-                        king_penalty = -self.count_attackers(board, r, c) * 5
-                    pos_bonus = self.CENTER_CONTROL_BONUS[r][c] * (1 if p.color=='w' else -1)
-                    mobi = len(p.get_possible_moves(board, r, c)) * 0.05
-                    threat = self.threat_penalty(board, r, c, p)
-                    prot = self.calculate_protection_bonus(board, r, c, p)
-                    value += base + pos_bonus + mobi - threat + prot + king_penalty
-        return value
-
     def evaluate_board_after_move(self, board, move):
-        """
-        Simulerer et træk og evaluerer resulterende bræt.
-        """
+        # Simulate the move and evaluate the board position after it
         new_board, _ = self.make_move(deepcopy(board), move)
         return self.evaluate_board(new_board)
 
-    def count_attackers(self, board, r, c):
-        """
-        Tæller fjendebrikkers angreb mod feltet (r,c).
-        """
-        count = 0
-        for i in range(8):
-            for j in range(8):
-                attacker = board[i][j]
-                if attacker and attacker.color != board[r][c].color:
-                    if (r, c) in attacker.get_possible_moves(board, i, j):
-                        count += 1
-        return count
+    def alphabeta(self, board, depth, alpha, beta, maximizing):
+        board_key = self.board_to_key(board)
+        if board_key in self.cache:
+            return self.cache[board_key]
 
-    def calculate_protection_bonus(self, board, r, c, piece):
-        """
-        Bonus for beskyttelse fra egne brikker.
-        """
-        bonus = 0
-        for i in range(-1, 2):
-            for j in range(-1, 2):
-                if 0 <= r+i < 8 and 0 <= c+j < 8:
-                    adj = board[r+i][c+j]
-                    if adj and adj.color == piece.color:
-                        bonus += 0.5
-        return bonus
+        if depth == 0 or self.is_game_over(board):
+            eval = self.evaluate_board(board)
+            self.cache[board_key] = eval
+            return eval
 
-    def threat_penalty(self, board, r, c, piece):
-        """
-        Straf for at være i trussel; højere straf for værdifulde brikker.
-        """
-        penalty = 0
-        opponent_color = 'b' if piece.color == 'w' else 'w'
-        for i in range(8):
-            for j in range(8):
-                attacker = board[i][j]
-                if attacker and attacker.color == opponent_color:
-                    if (r, c) in attacker.get_possible_moves(board, i, j):
-                        value = abs(self.piece_value(piece))
-                        penalty += value * 2.0  # 🟢 beskyttelsesforstærkning
-                        break
-        return penalty
+        color = 'b' if maximizing else 'w'
+        moves = self.get_all_moves(board, color)
+        
+        # Ingen træk, det er enten skakmat eller pat
+        if not moves:
+            # Hvis kongen er i skak, er det skakmat
+            king_pos = self.find_king(board, color)
+            if king_pos and self.is_in_check(board, king_pos, color):
+                return -math.inf if color == 'w' else math.inf
+            else:
+                return 0  # Pat (uafgjort)
+
+        if maximizing:
+            max_eval = -math.inf
+            for move in moves:
+                new_board, _ = self.make_move(deepcopy(board), move)
+                eval = self.alphabeta(new_board, depth - 1, alpha, beta, False)
+                max_eval = max(max_eval, eval)
+                alpha = max(alpha, eval)
+                if beta <= alpha:
+                    break
+            self.cache[board_key] = max_eval
+            return max_eval
+        else:
+            min_eval = math.inf
+            for move in moves:
+                new_board, _ = self.make_move(deepcopy(board), move)
+                eval = self.alphabeta(new_board, depth - 1, alpha, beta, True)
+                min_eval = min(min_eval, eval)
+                beta = min(beta, eval)
+                if beta <= alpha:
+                    break
+            self.cache[board_key] = min_eval
+            return min_eval
+
+    def make_move(self, board, move, return_undo=False):
+        r1, c1, r2, c2 = move
+        piece = board[r1][c1]
+        target = board[r2][c2]
+
+        undo_data = None
+        if return_undo:
+            undo_data = (r1, c1, r2, c2, piece, target)
+
+        board[r2][c2] = piece
+        board[r1][c1] = None
+        
+        # Ryd kongepositionscache når der er foretaget et træk
+        self.king_positions_cache = {}
+        
+        return board, undo_data
+
+    def undo_move(self, board, undo_data):
+        r1, c1, r2, c2, piece, target = undo_data
+        board[r1][c1] = piece
+        board[r2][c2] = target
+        self.king_positions_cache = {}  # Ryd cache
+
+    def board_to_key(self, board):
+        return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
+
+    def evaluate_board(self, board):
+        value = 0
+        white_piece_count = 0
+        black_piece_count = 0
+        
+        for r, row in enumerate(board):
+            for c, p in enumerate(row):
+                if p:
+                    # Basisværdi for brikken
+                    piece_value = self.piece_value(p)
+                    value += piece_value
+                    
+                    # Føj positionsbonus til værdi
+                    if p.color == 'w':
+                        white_piece_count += 1
+                        value += self.CENTER_CONTROL_BONUS[r][c]
+                        # Tilføj bonus for bønder der er rykket frem
+                        if p.name == 'P':
+                            value += self.PAWN_ADVANCEMENT[r][c]
+                    else:
+                        black_piece_count += 1
+                        value -= self.CENTER_CONTROL_BONUS[r][c]
+                        # For sorte bønder, spejl bonusværdien
+                        if p.name == 'P':
+                            value -= self.PAWN_ADVANCEMENT[7-r][c]
+        
+        # Tillæg bonus for udvikling af brikker i midtspillet
+        if 10 <= white_piece_count + black_piece_count <= 20:
+            # Find udviklingsstatus - hvor mange brikker er flyttet fra startposition
+            white_development = self.calculate_development(board, 'w')
+            black_development = self.calculate_development(board, 'b')
+            value += (white_development - black_development) * 5
+            
+        return value
+
+    def calculate_development(self, board, color):
+        # En simpel metode til at måle, hvor mange brikker der er udviklet
+        development_score = 0
+        back_rank = 7 if color == 'w' else 0
+        
+        # Tjek om springere og løbere er flyttet fra baglinjen
+        for c in [1, 2, 5, 6]:  # kolonner for springere og løbere
+            if board[back_rank][c] is None or board[back_rank][c].color != color:
+                development_score += 1
+                
+        return development_score
 
     def piece_value(self, piece):
-        """
-        Materiel værdi: dronning vægtet højere for beskyttelse.
-        """
-        values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 100, 'K': 1000000}  # 🟢 dronningsværdi hævet
+        values = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 2000}
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
 
     def get_all_moves(self, board, color):
-        """
-        Henter alle lovlige træk for farven og undgår skak.
-        """
         moves = []
-        for r in range(8):
-            for c in range(8):
-                p = board[r][c]
+        for r, row in enumerate(board):
+            for c, p in enumerate(row):
                 if p and p.color == color:
-                    for mv in p.get_possible_moves(board, r, c):
-                        tb, undo = self.make_move(board, (r, c, mv[0], mv[1]), return_undo=True)
-                        kp = self.find_king(tb, color)
-                        if kp and not self.is_in_check(tb, kp, color):
-                            moves.append((r, c, mv[0], mv[1]))
-                        self.undo_move(tb, undo)
+                    piece_moves = p.get_possible_moves(board, r, c)
+                    # Filtrér træk der ville efterlade kongen i skak
+                    for move in piece_moves:
+                        temp_board, undo_data = self.make_move(deepcopy(board), (r, c, move[0], move[1]), return_undo=True)
+                        king_pos = self.find_king(temp_board, color)
+                        if not king_pos or not self.is_in_check(temp_board, king_pos, color):
+                            moves.append((r, c, move[0], move[1]))
         return moves
 
     def is_game_over(self, board):
-        """
-        Tjek for skakmat, patt eller tabt konge.
-        """
-        wk = self.find_king(board, 'w')
-        bk = self.find_king(board, 'b')
-        if not wk or not bk:
+        # Tjek om en af kongerne er væk
+        if not self.find_king(board, 'w') or not self.find_king(board, 'b'):
             return True
-        if self.is_in_check(board, wk, 'w') and not self.has_legal_moves(board, 'w'):
-            return True
-        if self.is_in_check(board, bk, 'b') and not self.has_legal_moves(board, 'b'):
-            return True
+
+        # Tjek om sort er i skakmat
+        if not self.has_legal_moves(board, 'b'):
+            black_king_pos = self.find_king(board, 'b')
+            if self.is_in_check(board, black_king_pos, 'b'):
+                return True
+
+        # Tjek om hvid er i skakmat
+        if not self.has_legal_moves(board, 'w'):
+            white_king_pos = self.find_king(board, 'w')
+            if self.is_in_check(board, white_king_pos, 'w'):
+                return True
+
         return False
 
-    def is_in_check(self, board, king_pos, color):
-        """
-        Kontrollerer om kongen er i skak.
-        """
-        kr, kc = king_pos
-        opp = 'b' if color=='w' else 'w'
-        for r in range(8):
-            for c in range(8):
-                p = board[r][c]
-                if p and p.color==opp and (kr, kc) in p.get_possible_moves(board, r, c):
-                    return True
+    def is_in_check(self, board, king_position, color):
+        king_row, king_col = king_position
+        opponent_color = 'b' if color == 'w' else 'w'
+
+        # Tjek alle modstanderens brikker for at se, om de truer kongen
+        for row in range(8):
+            for col in range(8):
+                piece = board[row][col]
+                if piece and piece.color == opponent_color:
+                    moves = piece.get_possible_moves(board, row, col)
+                    if (king_row, king_col) in moves:
+                        return True
         return False
 
     def has_legal_moves(self, board, color):
-        """
-        Kontrollerer om der er lovlige træk uden at komme i skak.
-        """
-        for r in range(8):
-            for c in range(8):
-                p = board[r][c]
-                if p and p.color==color:
-                    for mv in p.get_possible_moves(board, r, c):
-                        tb, undo = self.make_move(board, (r, c, mv[0], mv[1]), return_undo=True)
-                        kp = self.find_king(tb, color)
-                        legal = kp and not self.is_in_check(tb, kp, color)
-                        self.undo_move(tb, undo)
-                        if legal:
+        for row in range(8):
+            for col in range(8):
+                piece = board[row][col]
+                if piece and piece.color == color:
+                    possible_moves = piece.get_possible_moves(board, row, col)
+                    for move in possible_moves:
+                        new_board, _ = self.make_move(deepcopy(board), (row, col, move[0], move[1]))
+                        king_pos = self.find_king(new_board, color)
+                        if king_pos and not self.is_in_check(new_board, king_pos, color):
                             return True
         return False
 
     def find_king(self, board, color):
-        """
-        Finder kongens position på brættet.
-        """
-        for r in range(8):
-            for c in range(8):
-                p = board[r][c]
-                if p and p.name=='K' and p.color==color:
-                    return (r, c)
+        # Check cache first
+        board_key = self.board_to_key(board)
+        cache_key = (board_key, color)
+        if cache_key in self.king_positions_cache:
+            return self.king_positions_cache[cache_key]
+        
+        # Find king position
+        for row in range(8):
+            for col in range(8):
+                piece = board[row][col]
+                if piece and piece.name == 'K' and piece.color == color:
+                    # Cache the result
+                    self.king_positions_cache[cache_key] = (row, col)
+                    return (row, col)
+        
+        # No king found
+        self.king_positions_cache[cache_key] = None
         return None
 
     def calculate_best_move_async(self, board, color, callback):
-        """
-        Asynkront beregning af det bedste træk.
-        """
-        def task():
-            move = self.get_best_move(board, color)
+        def async_task():
+            best_move = self.get_best_move(board, color)
             if callback:
-                callback(move)
-        threading.Thread(target=task).start()
+                callback(best_move)
+
+        # Running the AI calculation in a separate thread
+        thread = threading.Thread(target=async_task)
+        thread.start()
