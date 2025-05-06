@@ -21,6 +21,9 @@ class ChessAI:
             [0, 0, 5, 5, 5, 5, 0, 0],
         ]
 
+        self.CHECK_BONUS = 200        #bonus for at sætte modstander i skak
+        self.CHECKMATE_BONUS = 1000  #høj bonus for skakmat
+
     def get_best_move(self, board, color):
         """
         Beregner det bedste træk ved hjælp af iterative deepening og alpha-beta.
@@ -46,7 +49,7 @@ class ChessAI:
 
         # Hent og sorter træk (move ordering optimerer alpha-beta)
         moves = self.get_all_moves(board, color)
-        moves.sort(key=lambda m: self.evaluate_board_after_move(board, m), reverse=(color=='w'))
+        moves.sort(key=lambda m: self.move_priority(board, m, color), reverse=(color=='w'))
 
         for move in moves:
             new_board, undo = self.make_move(board, move, return_undo=True)
@@ -74,7 +77,7 @@ class ChessAI:
         color = 'w' if maximizing else 'b'
         # Move ordering i alphabeta
         moves = self.get_all_moves(board, color)
-        moves.sort(key=lambda m: self.evaluate_board_after_move(board, m), reverse=maximizing)
+        moves.sort(key=lambda m: self.move_priority(board, m, color), reverse=maximizing)
 
         if maximizing:
             value = -math.inf
@@ -129,6 +132,20 @@ class ChessAI:
         return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
 
     def evaluate_board(self, board):
+        #skakmat evaluering
+        if self.is_game_over(board):
+            wk = self.find_king(board, 'w')
+            bk = self.find_king(board, 'b')
+            if wk is None:
+                return -float('inf')  #sort vinder
+            elif bk is None:
+                return float('inf')   #hvid vinder
+            elif not self.has_legal_moves(board, 'w') and self.is_in_check(board, wk, 'w'):
+                return -float('inf')  #hvid er skakmat
+            elif not self.has_legal_moves(board, 'b') and self.is_in_check(board, bk, 'b'):
+                return float('inf')   #sort er skakmat
+            else:
+                return 0  # pat (remis)
         """
         Evaluering med strategiske faktorer: centerkontrol, mobilitet, sikkerhed.
         """
@@ -156,7 +173,15 @@ class ChessAI:
         Simulerer et træk og evaluerer resulterende bræt.
         """
         new_board, _ = self.make_move(deepcopy(board), move)
-        return self.evaluate_board(new_board)
+        score = self.evaluate_board(new_board)
+    
+        #Tjek om modstanderen er sat i skak
+        next_color = 'b' if board[move[0]][move[1]].color == 'w' else 'w'
+        king_pos = self.find_king(new_board, next_color)                   
+        if king_pos and self.is_in_check(new_board, king_pos, next_color):
+            score += 1.5 if next_color == 'b' else -1.5  #lille bonus for skak
+
+        return score
 
     def count_attackers(self, board, r, c):
         """
@@ -204,7 +229,7 @@ class ChessAI:
         """
         Materiel værdi: dronning vægtet højere for beskyttelse.
         """
-        values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 100, 'K': 1000000}  # 🟢 dronningsværdi hævet
+        values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 100, 'K': 2000}  # 🟢 dronningsværdi hævet
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
 
     def get_all_moves(self, board, color):
@@ -223,6 +248,24 @@ class ChessAI:
                             moves.append((r, c, mv[0], mv[1]))
                         self.undo_move(tb, undo)
         return moves
+    
+    def move_priority(self, board, move, color):
+        """
+        Returnerer en prioritetsscore til move ordering:
+        - højere for skakmat
+        - derefter skak
+        - ellers baseret på brætvurdering
+        """
+        new_board, _ = self.make_move(deepcopy(board), move)
+        opponent = 'b' if color == 'w' else 'w'
+        opponent_king = self.find_king(new_board, opponent)
+        
+        if not opponent_king or (self.is_in_check(new_board, opponent_king, opponent) and not self.has_legal_moves(new_board, opponent)):
+            return 10000  #skakmat
+        elif opponent_king and self.is_in_check(new_board, opponent_king, opponent):
+            return 500  #skak
+        else:
+            return self.evaluate_board(new_board)
 
     def is_game_over(self, board):
         """

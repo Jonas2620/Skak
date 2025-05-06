@@ -132,7 +132,7 @@ def main():
 
     while True:
         board = initialize_board()
-        ai = ChessAI(depth=5)
+        ai = ChessAI(depth=3)
 
         selected_piece = None
         possible_moves = []
