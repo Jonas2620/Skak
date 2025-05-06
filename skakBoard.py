@@ -165,6 +165,7 @@ def main():
                     return
 
             if not human_turn:
+
                 best_move = ai.get_best_move(board, 'b')
                 if best_move:
                     r1, c1, r2, c2 = best_move
