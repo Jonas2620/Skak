@@ -6,28 +6,111 @@ class ChessAI:
     def __init__(self, depth=4):
         self.cache = {}
         self.depth = depth
-        # Forbedret vægtning af brikkernes værdi på brættet
+        
+# Center control bonus for general piece positioning
+# Higher values for center control, gradually decreasing toward edges
         self.CENTER_CONTROL_BONUS = [
-            [0, 0, 5, 5, 5, 5, 0, 0],
-            [0, 5, 10, 10, 10, 10, 5, 0],
-            [5, 10, 15, 20, 20, 15, 10, 5],
-            [5, 10, 20, 25, 25, 20, 10, 5],
-            [5, 10, 20, 25, 25, 20, 10, 5],
-            [5, 10, 15, 20, 20, 15, 10, 5],
-            [0, 5, 10, 10, 10, 10, 5, 0],
-            [0, 0, 5, 5, 5, 5, 0, 0],
-        ]
-        # Tilføjet værdier for bønders position (bedre at have bønder fremme)
-        self.PAWN_ADVANCEMENT = [
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [50, 50, 50, 50, 50, 50, 50, 50],
-            [10, 10, 20, 30, 30, 20, 10, 10],
-            [5, 5, 10, 25, 25, 10, 5, 5],
-            [0, 0, 0, 20, 20, 0, 0, 0],
-            [5, -5, -10, 0, 0, -10, -5, 5],
-            [5, 10, 10, -20, -20, 10, 10, 5],
-            [0, 0, 0, 0, 0, 0, 0, 0]
-        ]
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 5, 10, 10, 10, 10, 5, 0],
+    [0, 10, 20, 25, 25, 20, 10, 0],
+    [0, 10, 25, 30, 30, 25, 10, 0],
+    [0, 10, 25, 30, 30, 25, 10, 0],
+    [0, 10, 20, 25, 25, 20, 10, 0],
+    [0, 5, 10, 10, 10, 10, 5, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+]
+
+# PAWN position values (improved)
+# Encourages center control, pawn chain formation, and advancement
+        self.PAWN_POSITION = [
+    [0, 0, 0, 0, 0, 0, 0, 0],         # Last rank (rarely occurs for pawns)
+    [50, 50, 50, 50, 50, 50, 50, 50], # About to promote
+    [10, 10, 20, 30, 30, 20, 10, 10], # Advanced pawns
+    [5, 5, 10, 25, 25, 10, 5, 5],     # Past midpoint
+    [0, 0, 5, 20, 20, 5, 0, 0],       # Center control
+    [5, -5, -10, 0, 0, -10, -5, 5],   # Initial pawn movement area
+    [5, 10, 10, -20, -20, 10, 10, 5], # Starting row
+    [0, 0, 0, 0, 0, 0, 0, 0]          # Never occurs for pawns
+]
+
+# KNIGHT position values (improved)
+# Knights are better in the center and closer to the center
+        self.KNIGHT_POSITION = [
+    [-50, -40, -30, -30, -30, -30, -40, -50],
+    [-40, -20, 0, 5, 5, 0, -20, -40],
+    [-30, 0, 10, 15, 15, 10, 0, -30],
+    [-30, 5, 15, 20, 20, 15, 5, -30],
+    [-30, 5, 15, 20, 20, 15, 5, -30],
+    [-30, 0, 10, 15, 15, 10, 0, -30],
+    [-40, -20, 0, 5, 5, 0, -20, -40],
+    [-50, -40, -30, -30, -30, -30, -40, -50]
+]
+
+# BISHOP position values (improved)
+# Bishops benefit from long diagonals and open positions
+        self.BISHOP_POSITION = [
+    [-20, -10, -10, -10, -10, -10, -10, -20],
+    [-10, 5, 0, 0, 0, 0, 5, -10],
+    [-10, 10, 10, 10, 10, 10, 10, -10],
+    [-10, 0, 10, 15, 15, 10, 0, -10],
+    [-10, 5, 5, 15, 15, 5, 5, -10],
+    [-10, 0, 5, 10, 10, 5, 0, -10],
+    [-10, 0, 0, 0, 0, 0, 0, -10],
+    [-20, -10, -10, -10, -10, -10, -10, -20]
+]
+
+# ROOK position values (improved)
+# Rooks benefit from open files and 7th rank
+        self.ROOK_POSITION = [
+    [0, 0, 0, 5, 5, 0, 0, 0],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [5, 10, 10, 10, 10, 10, 10, 5],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+]
+
+# QUEEN position values (improved)
+# Queens benefit from center control but should avoid early development
+        self.QUEEN_POSITION = [
+    [-20, -10, -10, -5, -5, -10, -10, -20],
+    [-10, 0, 0, 0, 0, 0, 0, -10],
+    [-10, 0, 5, 5, 5, 5, 0, -10],
+    [-5, 0, 5, 10, 10, 5, 0, -5],
+    [0, 0, 5, 10, 10, 5, 0, -5],
+    [-10, 5, 5, 5, 5, 5, 0, -10],
+    [-10, 0, 5, 0, 0, 0, 0, -10],
+    [-20, -10, -10, -5, -5, -10, -10, -20]
+]
+
+# KING middle game position values (improved)
+# King safety is paramount in the middle game - stay in corner, castle
+        self.KING_MIDDLEGAME_POSITION = [
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-20, -30, -30, -40, -40, -30, -30, -20],
+    [-10, -20, -20, -20, -20, -20, -20, -10],
+    [20, 20, 0, 0, 0, 0, 20, 20],
+    [20, 30, 10, 0, 0, 10, 30, 20]
+]
+
+# KING endgame position values (NEW!)
+# King should be active in the endgame and move toward the center
+        self.KING_ENDGAME_POSITION = [
+    [-50, -30, -30, -30, -30, -30, -30, -50],
+    [-30, -20, -10, -10, -10, -10, -20, -30],
+    [-30, -10, 20, 30, 30, 20, -10, -30],
+    [-30, -10, 30, 40, 40, 30, -10, -30],
+    [-30, -10, 30, 40, 40, 30, -10, -30],
+    [-30, -10, 20, 30, 30, 20, -10, -30],
+    [-30, -30, 0, 0, 0, 0, -30, -30],
+    [-50, -30, -30, -30, -30, -30, -30, -50]
+]
+
         # Cache for at gemme kongepositioner
         self.king_positions_cache = {}
 
@@ -176,7 +259,7 @@ class ChessAI:
         return development_score
 
     def piece_value(self, piece):
-        values = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 2000}
+        values = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000}
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
 
     def get_all_moves(self, board, color):
