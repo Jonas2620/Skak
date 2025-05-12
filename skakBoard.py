@@ -243,7 +243,6 @@ class ChessGame:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if start_btn.collidepoint(event.pos):
                         running = False
@@ -286,42 +285,6 @@ class ChessGame:
                 pygame.draw.rect(self.screen, (0, 128, 0), btn)
                 self.screen.blit(text, (btn.x + 25, btn.y + 10))
                 
-
-
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Skak GUI med pygame")
-    clock = pygame.time.Clock()
-
-    load_images()
-    show_start_menu(screen)
-
-    while True:
-        board = initialize_board()
-        ai = ChessAI(depth=3)
-
-        selected_piece = None
-        possible_moves = []
-        human_turn = True
-        game_over = False
-        winner_text = ""
-
-        while True:
-            draw_board(screen)
-            draw_pieces(screen, board)
-            draw_possible_moves(screen, possible_moves)
-
-            if not game_over:
-                white_king_pos = ai.find_king(board, 'w')
-                black_king_pos = ai.find_king(board, 'b')
-
-                if white_king_pos and ai.is_in_check(board, white_king_pos, 'w'):
-                    highlight_check(screen, white_king_pos)
-                if black_king_pos and ai.is_in_check(board, black_king_pos, 'b'):
-                    highlight_check(screen, black_king_pos)
-
-
             pygame.display.flip()
 
             for event in pygame.event.get():

@@ -489,7 +489,6 @@ class ChessAI:
                     if 0 <= adj_row < 8 and board[adj_row][adj_col] and board[adj_row][adj_col].name == 'P' and board[adj_row][adj_col].color == color:
                         is_connected = True
                         break
-
         if is_connected:
             value += self.PAWN_STRUCTURE_BONUS['connected']
             
@@ -522,16 +521,6 @@ class ChessAI:
         """Evaluate how well pieces coordinate with each other"""
         coordination_score = 0
         piece_positions = {'w': [], 'b': []}
-
-        return penalty
-
-    def piece_value(self, piece):
-        """
-        Materiel værdi: dronning vægtet højere for beskyttelse.
-        """
-        values = {'P': 1, 'N': 15, 'B': 30, 'R': 50, 'Q': 100, 'K': 500}  # 🟢 dronningsværdi hævet
-        return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
-
 
         # Find all pieces
         for r in range(8):
