@@ -422,6 +422,7 @@ class ChessGame:
                 self.board[r2][c2] = Queen('b')
 
         self.ai_thinking = False
+        self.human_turn = True
         
         if self.ai.is_game_over(self.board):
             self.game_over = True
