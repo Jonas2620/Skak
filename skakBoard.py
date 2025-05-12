@@ -6,7 +6,7 @@ from alphabeta import ChessAI
 from skakPieces import Pawn, Rook, Knight, Bishop, Queen, King
 
 # Skærmindstillinger
-WIDTH, HEIGHT = 800, 800
+WIDTH, HEIGHT = 800, 650
 ROWS, COLS = 8, 8
 SQUARE_SIZE = WIDTH // COLS
 
@@ -30,6 +30,18 @@ def initialize_board():
         [None] * 8,
         [Pawn('w') for _ in range(8)],
         [Rook('w'), Knight('w'), Bishop('w'), Queen('w'), King('w'), Bishop('w'), Knight('w'), Rook('w')],
+    ]
+    
+def initialize_board_mirrored():
+    return [
+        [Rook('w'), Knight('w'), Bishop('w'), Queen('w'), King('w'), Bishop('w'), Knight('w'), Rook('w')],
+        [Pawn('w') for _ in range(8)],
+        [None] * 8,
+        [None] * 8,
+        [None] * 8,
+        [None] * 8,
+        [Pawn('b') for _ in range(8)],
+        [Rook('b'), Knight('b'), Bishop('b'), Queen('b'), King('b'), Bishop('b'), Knight('b'), Rook('b')],
     ]
 
 def load_images():
@@ -132,6 +144,17 @@ def handle_slider(x, y, width, value, min_val, max_val, mouse_pos, mouse_pressed
             return max(min_val, min(max_val, round(new_value)))
     return value
 
+def draw_flip_button(screen):
+    button_rect = pygame.Rect(WIDTH - 120, HEIGHT - 40, 110, 30)
+    pygame.draw.rect(screen, (150, 150, 150), button_rect)
+    pygame.draw.rect(screen, (0, 0, 0), button_rect, 2)
+    
+    font = pygame.font.SysFont("Arial", 16)
+    button_text = font.render("Vend bræt", True, (0, 0, 0))
+    screen.blit(button_text, (WIDTH - 105, HEIGHT - 35))
+    
+    return button_rect
+
 def show_difficulty_settings(screen):
     font = pygame.font.SysFont("Arial", 48)
     title = font.render("Sværhedsgrad Indstillinger", True, (0, 0, 0))
@@ -218,6 +241,17 @@ def show_start_menu(screen, difficulty_settings):
         else:  # For "Tilpas indstillinger" knappen
             text = button_font.render(level, True, (255, 255, 255))
         buttons.append((btn, text, depth))
+        
+          
+    board_oriented_white_bottom = True #knap til at flip board
+    
+    orientation_btn_white_bottom = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 + len(difficulty_options) * 70 + 20, 140, 40)
+    orientation_btn_white_top = pygame.Rect(WIDTH // 2 + 10, HEIGHT // 2 + len(difficulty_options) * 70 + 20, 140, 40)
+    
+    orientation_font = pygame.font.SysFont("Arial", 18)
+    orientation_text_white_bottom = orientation_font.render("Hvid i bund", True, (255, 255, 255))
+    orientation_text_white_top = orientation_font.render("Hvid i top", True, (255, 255, 255))
+
 
     while True:
         screen.fill((200, 200, 200))
@@ -226,6 +260,13 @@ def show_start_menu(screen, difficulty_settings):
         for btn, text, _ in buttons:
             pygame.draw.rect(screen, (0, 128, 0), btn)
             screen.blit(text, (btn.x + 25, btn.y + 10))
+        
+        # Tegn orienteringsknapperne med højlys for den valgte
+        pygame.draw.rect(screen, (0, 100, 200) if board_oriented_white_bottom else (100, 100, 100), orientation_btn_white_bottom)
+        pygame.draw.rect(screen, (0, 100, 200) if not board_oriented_white_bottom else (100, 100, 100), orientation_btn_white_top)
+        
+        screen.blit(orientation_text_white_bottom, (orientation_btn_white_bottom.x + 10, orientation_btn_white_bottom.y + 10))
+        screen.blit(orientation_text_white_top, (orientation_btn_white_top.x + 10, orientation_btn_white_top.y + 10))
             
         pygame.display.flip()
 
@@ -234,11 +275,19 @@ def show_start_menu(screen, difficulty_settings):
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
+                # Håndter klik på sværhedsknapper
                 for btn, _, depth in buttons:
                     if btn.collidepoint(event.pos):
                         if depth == 0:  # Hvis "Tilpas indstillinger" er valgt
-                            return None
-                        return depth
+                            return None, board_oriented_white_bottom
+                        return depth, board_oriented_white_bottom
+                
+                # Håndter klik på orienteringsknapper
+                if orientation_btn_white_bottom.collidepoint(event.pos):
+                    board_oriented_white_bottom = True
+                elif orientation_btn_white_top.collidepoint(event.pos):
+                    board_oriented_white_bottom = False
+
 
 def show_game_over_menu(screen, winner_text):
     font = pygame.font.SysFont("Arial", 48)
@@ -299,7 +348,7 @@ def main():
     # Hovedspilsløjfe
     while True:
         # Vis første startmenu
-        ai_depth = show_start_menu(screen, difficulty_settings)
+        ai_depth, board_oriented_white_bottom = show_start_menu(screen, difficulty_settings)
         
         # Hvis brugeren valgte "Tilpas indstillinger"
         if ai_depth is None:
@@ -307,7 +356,9 @@ def main():
             continue  # Gå tilbage til startmenuen med de opdaterede indstillinger
         
         # Initialiser spil
-        board = initialize_board()
+        board = initialize_board() if board_oriented_white_bottom else initialize_board_mirrored()
+        board_flipped = not board_oriented_white_bottom  # Gem brættets orientering
+        
         ai = ChessAI(depth=ai_depth)
 
         selected_piece = None
@@ -327,6 +378,8 @@ def main():
             highlight_selected(screen, selected_piece)
             draw_possible_moves(screen, possible_moves)
             show_thinking_indicator(screen, ai_thinking)
+            
+            flip_button = draw_flip_button(screen)
 
             if not game_over:
                 white_king_pos = ai.find_king(board, 'w')
@@ -376,6 +429,16 @@ def main():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     return
+                
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    # Håndter klik på "Vend bræt" knappen
+                    if flip_button.collidepoint(event.pos):
+                        # Vend brættet
+                        board_flipped = not board_flipped
+                        
+                        # Opdater brættet baseret på den nye orientering
+                        # Vi holder fast i det nuværende bræt, men ændrer renderingen
+                        continue
 
                 if event.type == pygame.MOUSEBUTTONDOWN and human_turn and not game_over:
                     square = get_square_under_mouse()
