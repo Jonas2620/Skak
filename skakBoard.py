@@ -35,6 +35,8 @@ class ChessGame:
         
         self.piece_images = {}
         self.load_images()
+        self.move_log = []    # Historik over træk
+
         
         # Standardsværhedsgrader
         self.difficulty_settings = {
@@ -42,6 +44,7 @@ class ChessGame:
             "mellem": 2,
             "svær": 3
         }
+
         
         # Spilvariabler
         self.board = None
@@ -54,6 +57,8 @@ class ChessGame:
         self.winner_text = ""
         self.last_move = None
         self.ai_thinking = False
+        self.move_log = []
+
         
         self.state = STATE_MENU
         
@@ -62,6 +67,27 @@ class ChessGame:
         self.medium_font = pygame.font.SysFont("Arial", 36)
         self.small_font = pygame.font.SysFont("Arial", 24)
         self.tiny_font = pygame.font.SysFont("Arial", 14)
+            # Undo-knap
+        self.undo_button = pygame.Rect(WIDTH - 110, HEIGHT - 50, 100, 40)
+        self.undo_text = self.small_font.render("Undo", True, (255,255,255))
+    
+   
+    def undo_move(self):
+    # Kør op til to gange (AI + menneske)
+     for i in range(2):
+        if not self.move_log:
+            break
+        r1, c1, r2, c2, moved, captured = self.move_log.pop()
+        # Rul tilbage på brættet
+        self.board[r1][c1] = moved
+        self.board[r2][c2] = captured
+        # Skift tur: efter begge undo skal det være menneskets tur
+        # (første iteration går til AI’s tur, anden til menneskets)
+        self.human_turn = (i == 1)
+    # Ryd highlights
+     self.selected_piece = None
+     self.possible_moves = []
+     self.last_move = None
     
     def load_images(self):
         """Indlæser brikkebilleder"""
@@ -239,13 +265,15 @@ class ChessGame:
             
             pygame.display.flip()
             
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if start_btn.collidepoint(event.pos):
-                        running = False
+        for event in pygame.event.get():
+             if event.type == pygame.QUIT:
+              pygame.quit()
+              sys.exit()
+             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z:
+        # Tryk Z for at undo det sidste træk
+              self.undo_move()
+             else:
+              self.handle_game_event(event)
         
         # Gem de valgte dybder
         self.difficulty_settings = {
@@ -379,6 +407,10 @@ class ChessGame:
 
                 if self.selected_piece:
                     if (row, col) in self.possible_moves:
+                       # Log trækket før udførsel
+                        r1, c1, p = self.selected_piece
+                        captured = self.board[row][col]           # det stykke (eller None), som slås
+                        self.move_log.append((r1, c1, row, col, p, captured))
                         # Udfør trækket
                         r1, c1, p = self.selected_piece
                         self.board[row][col] = p
@@ -412,13 +444,18 @@ class ChessGame:
     def ai_move_callback(self, best_move):
         """Callback funktion til håndtering af AI træk"""
         if best_move:
-            r1, c1, r2, c2 = best_move
-            self.board[r2][c2] = self.board[r1][c1]
-            self.board[r1][c1] = None
-            self.last_move = best_move
+         r1, c1, r2, c2 = best_move
+         moved = self.board[r1][c1]
+         captured = self.board[r2][c2]
+         self.move_log.append((r1, c1, r2, c2, moved, captured))
+
+         self.board[r2][c2] = moved
+         self.board[r1][c1] = None
+         self.last_move = best_move
+
             
             # Bondeforvandling til dronning hvis en bonde når modstanderens baglinje
-            if self.board[r2][c2].name == 'P' and r2 == 7:  # Sort bonde når hvid baglinje
+         if self.board[r2][c2].name == 'P' and r2 == 7:  # Sort bonde når hvid baglinje
                 self.board[r2][c2] = Queen('b')
 
         self.ai_thinking = False
@@ -471,6 +508,16 @@ class ChessGame:
             turn_text = self.small_font.render("Din tur (hvid)", True, (0, 0, 0))
             self.screen.blit(turn_text, (10, 10))
     
+               # Tegn Undo-knap
+            pygame.draw.rect(self.screen, (50,50,50), self.undo_button, border_radius=5)
+            self.screen.blit(
+            self.undo_text,
+            (
+                self.undo_button.x + (self.undo_button.width - self.undo_text.get_width())//2,
+                self.undo_button.y + (self.undo_button.height - self.undo_text.get_height())//2
+            )
+         )
+    
     def run(self):
         """Kører hovedspiløjfen"""
         while True:
@@ -484,17 +531,27 @@ class ChessGame:
                     if event.type == pygame.QUIT:
                         pygame.quit()
                         sys.exit()
+
+                    # Tjek for klik på Undo-knap
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        if self.undo_button.collidepoint(event.pos):
+                            self.undo_move()
+                            continue  # spring almindelig spil-håndtering over for undo
+
+                    # Almindelig spil-håndtering (klik på bræt)
                     self.handle_game_event(event)
-                
-                # Opdater spillet
+
+                # Opdater spillet (AI-træk osv.)
                 self.update_game()
-                
-                # Render spillet
+
+                # Render spillet (bræt, brikker, knapper mv.)
                 self.render_game()
                 pygame.display.flip()
                 self.clock.tick(60)
+
             elif self.state == STATE_GAME_OVER:
                 self.show_game_over_menu()
+                
 
 if __name__ == "__main__":
     game = ChessGame()
