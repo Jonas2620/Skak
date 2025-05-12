@@ -4,7 +4,7 @@ import sys
 import time
 import threading
 from alphabeta import ChessAI
-from skakPieces import Pawn, Rook, Knight, Bishop, Queen, King
+from skakPieces import Piece, Pawn, Rook, Knight, Bishop, Queen, King
 from copy import deepcopy
 
 # Skærmindstillinger
@@ -370,7 +370,7 @@ class ChessGame:
         return valid_moves
     
     def handle_game_event(self, event):
-        """Håndterer spilbegivenheder under selve skakspillet"""
+        """Håndterer spilbegivenheder under selve skakspillet med understøttelse af rokade"""
         if event.type == pygame.MOUSEBUTTONDOWN and self.human_turn and not self.game_over:
             square = self.get_square_under_mouse()
             if square:
@@ -378,16 +378,46 @@ class ChessGame:
                 piece = self.board[row][col]
 
                 if self.selected_piece:
+                    r1, c1, p = self.selected_piece
+                    
+                    # Tjek for rokade
+                    if isinstance(p, King) and isinstance(piece, Rook) and p.color == piece.color:
+                        # Rokade fra venstre side (queenside)
+                        if col < c1 and not p.has_moved and not piece.has_moved:
+                            dest_col = c1 - 2
+                            if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
+                                self.board = p.perform_castling(self.board, r1, c1, dest_col)
+                                self.last_move = (r1, c1, r1, dest_col)
+                                self.selected_piece = None
+                                self.possible_moves = []
+                                self.human_turn = False
+                                return
+                        
+                        # Rokade fra højre side (kingside)
+                        elif col > c1 and not p.has_moved and not piece.has_moved:
+                            dest_col = c1 + 2
+                            if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
+                                self.board = p.perform_castling(self.board, r1, c1, dest_col)
+                                self.last_move = (r1, c1, r1, dest_col)
+                                self.selected_piece = None
+                                self.possible_moves = []
+                                self.human_turn = False
+                                return
+
+                    # Normal træk
                     if (row, col) in self.possible_moves:
                         # Udfør trækket
-                        r1, c1, p = self.selected_piece
                         self.board[row][col] = p
                         self.board[r1][c1] = None
                         self.last_move = (r1, c1, row, col)
                         
                         # Bondeforvandling til dronning hvis en bonde når modstanderens baglinje
-                        if p.name == 'P' and row == 0:  # Hvid bonde når sort baglinje
-                            self.board[row][col] = Queen('w')
+                        if p.name == 'P' and (row == 0 or row == 7):  # Både hvid og sort baglinje
+                            self.board[row][col] = Queen(p.color)
+                        
+                        # Markér at kongen/tårnet har bevæget sig (for rokade)
+                        if p.name == 'K' or p.name == 'R':
+                            p.has_moved = True
                         
                         self.selected_piece = None
                         self.possible_moves = []
@@ -408,6 +438,53 @@ class ChessGame:
                 elif piece and piece.color == 'w':
                     self.selected_piece = (row, col, piece)
                     self.possible_moves = self.get_valid_moves(row, col, piece)
+    
+    def _verify_castling_path(self, board, row, start_col, end_col, color):
+        """
+        Verificerer at ingen felter mellem start og slut kolonner er truet under rokade
+        
+        :param board: Hele skakbrættet
+        :param row: Kongens række
+        :param start_col: Startkolonne for kongen
+        :param end_col: Slutkolonne for kongen
+        :param color: Farven på kongen der rokerer
+        :return: True hvis vejen er sikker, False ellers
+        """
+        # Bestem retningen for rokaden (positiv eller negativ)
+        step = 1 if end_col > start_col else -1
+        
+        # Tjek felterne kongen passerer
+        for current_col in range(start_col, end_col + step, step):
+            # Tjek om dette felt er truet af nogen modstanderbrikker
+            if self._is_square_under_attack(board, row, current_col, color):
+                return False
+        
+        return True
+    
+    def _is_square_under_attack(self, board, target_row, target_col, defending_color):
+        """
+        Tjekker om et felt er truet af modstanderbrikker
+        
+        :param board: Hele skakbrættet
+        :param target_row: Række for det felt der tjekkes
+        :param target_col: Kolonne for det felt der tjekkes
+        :param defending_color: Farven på den forsvarende side
+        :return: True hvis feltet er truet, False ellers
+        """
+        # Gennemgå hele brættet
+        for row in range(8):
+            for col in range(8):
+                # Find modstanderbrikker
+                piece = board[row][col]
+                if isinstance(piece, Piece) and piece.color != defending_color:
+                    # Få mulige angrebsfelter for denne brik
+                    attack_moves = piece.get_possible_moves(board, row, col, include_attacks=True)
+                    
+                    # Se om nogle af disse angrebsfelter rammer target-feltet
+                    if (target_row, target_col) in attack_moves:
+                        return True
+        
+        return False
     
     def ai_move_callback(self, best_move):
         """Callback funktion til håndtering af AI træk"""
