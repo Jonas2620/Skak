@@ -36,6 +36,8 @@ class ChessGame:
         self.piece_images = {}
         self.load_images()
         self.move_log = []    # Historik over træk
+        self.is_paused = False  # For at kontrollere om spillet er sat på pause
+
 
         
         # Standardsværhedsgrader
@@ -120,6 +122,16 @@ class ChessGame:
             for col in range(COLS):
                 color = LIGHT if (row + col) % 2 == 0 else DARK
                 pygame.draw.rect(self.screen, color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+
+        # Hvis spillet er på pause, vis en pause-overlay
+        if self.is_paused:
+            pause_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            pause_overlay.fill((0, 0, 0, 150))  # Halvtransparent overlay
+            self.screen.blit(pause_overlay, (0, 0))
+
+            pause_text = self.medium_font.render("Spillet er på pause", True, (255, 255, 255))
+            self.screen.blit(pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - pause_text.get_height() // 2))
+
     
     def draw_coordinates(self):
         """Tegner skakkoordinater"""
@@ -140,6 +152,11 @@ class ChessGame:
                     image_key = f"{piece.color}{piece.name}"
                     if image_key in self.piece_images:
                         self.screen.blit(self.piece_images[image_key], (col * SQUARE_SIZE, row * SQUARE_SIZE))
+
+        # Hvis en brik er valgt under pause, fremhæv den
+        if self.selected_piece:
+            row, col, _ = self.selected_piece
+            pygame.draw.rect(self.screen, BLUE, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 5)
     
     def draw_possible_moves(self):
         """Tegner mulige træk"""
@@ -399,77 +416,106 @@ class ChessGame:
     
     def handle_game_event(self, event):
         """Håndterer spilbegivenheder under selve skakspillet med understøttelse af rokade"""
-        if event.type == pygame.MOUSEBUTTONDOWN and self.human_turn and not self.game_over:
-            square = self.get_square_under_mouse()
-            if square:
-                row, col = square
-                piece = self.board[row][col]
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Hvis spillet er på pause, tillad at flytte brikker rundt
+            if self.is_paused:
+                square = self.get_square_under_mouse()
+                if square:
+                    row, col = square
+                    piece = self.board[row][col]
 
-                if self.selected_piece:
-                    r1, c1, p = self.selected_piece
-                    
-                    # Tjek for rokade
-                    if isinstance(p, King) and isinstance(piece, Rook) and p.color == piece.color:
-                        # Rokade fra venstre side (queenside)
-                        if col < c1 and not p.has_moved and not piece.has_moved:
-                            dest_col = c1 - 2
-                            if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
-                                self.board = p.perform_castling(self.board, r1, c1, dest_col)
-                                self.last_move = (r1, c1, r1, dest_col)
-                                self.selected_piece = None
-                                self.possible_moves = []
-                                self.human_turn = False
-                                return
-                        
-                        # Rokade fra højre side (kingside)
-                        elif col > c1 and not p.has_moved and not piece.has_moved:
-                            dest_col = c1 + 2
-                            if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
-                                self.board = p.perform_castling(self.board, r1, c1, dest_col)
-                                self.last_move = (r1, c1, r1, dest_col)
-                                self.selected_piece = None
-                                self.possible_moves = []
-                                self.human_turn = False
-                                return
-
-                    # Normal træk
-                    if (row, col) in self.possible_moves:
-                       # Log trækket før udførsel
+                    if self.selected_piece:
                         r1, c1, p = self.selected_piece
-                        captured = self.board[row][col]           # det stykke (eller None), som slås
-                        self.move_log.append((r1, c1, row, col, p, captured))
-                        # Udfør trækket
-                        self.board[row][col] = p
-                        self.board[r1][c1] = None
-                        self.last_move = (r1, c1, row, col)
-                        
-                        # Bondeforvandling til dronning hvis en bonde når modstanderens baglinje
-                        if p.name == 'P' and (row == 0 or row == 7):  # Både hvid og sort baglinje
-                            self.board[row][col] = Queen(p.color)
-                        
-                        # Markér at kongen/tårnet har bevæget sig (for rokade)
-                        if p.name == 'K' or p.name == 'R':
-                            p.has_moved = True
-                        
-                        self.selected_piece = None
-                        self.possible_moves = []
+                        if (row, col) != (r1, c1):  # Gør kun ændringer, hvis det er et andet felt
+                            self.board[row][col] = p
+                            self.board[r1][c1] = None
+                            self.selected_piece = None  # Fjern den valgte brik
+                            self.possible_moves = []  # Fjern mulige træk
+                    else:
+                        if piece:  # Hvis der er en brik på det felt
+                            self.selected_piece = (row, col, piece)  # Vælg brikken
+                            self.possible_moves = self.get_valid_moves(row, col, piece)
+                return
 
-                        if self.ai.is_game_over(self.board):
-                            self.game_over = True
-                            self.winner_text = "Sort vinder!" if self.ai.find_king(self.board, 'w') is None else "Hvid vinder!"
-                            self.state = STATE_GAME_OVER
+            # Normale spiltræk, når spillet ikke er på pause
+            if self.human_turn and not self.game_over:
+                square = self.get_square_under_mouse()
+                if square:
+                    row, col = square
+                    piece = self.board[row][col]
+
+                    if self.selected_piece:
+                        r1, c1, p = self.selected_piece
+                        
+                        # Tjek for rokade
+                        if isinstance(p, King) and isinstance(piece, Rook) and p.color == piece.color:
+                            # Rokade fra venstre side (queenside)
+                            if col < c1 and not p.has_moved and not piece.has_moved:
+                                dest_col = c1 - 2
+                                if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
+                                    self.board = p.perform_castling(self.board, r1, c1, dest_col)
+                                    self.last_move = (r1, c1, r1, dest_col)
+                                    self.selected_piece = None
+                                    self.possible_moves = []
+                                    self.human_turn = False
+                                    return
+                            
+                            # Rokade fra højre side (kingside)
+                            elif col > c1 and not p.has_moved and not piece.has_moved:
+                                dest_col = c1 + 2
+                                if self._verify_castling_path(self.board, row, c1, dest_col, p.color):
+                                    self.board = p.perform_castling(self.board, r1, c1, dest_col)
+                                    self.last_move = (r1, c1, r1, dest_col)
+                                    self.selected_piece = None
+                                    self.possible_moves = []
+                                    self.human_turn = False
+                                    return
+
+                        # Normal træk
+                        if (row, col) in self.possible_moves:
+                        # Log trækket før udførsel
+                            r1, c1, p = self.selected_piece
+                            captured = self.board[row][col]           # det stykke (eller None), som slås
+                            self.move_log.append((r1, c1, row, col, p, captured))
+                            # Udfør trækket
+                            self.board[row][col] = p
+                            self.board[r1][c1] = None
+                            self.last_move = (r1, c1, row, col)
+                            
+                            # Bondeforvandling til dronning hvis en bonde når modstanderens baglinje
+                            if p.name == 'P' and (row == 0 or row == 7):  # Både hvid og sort baglinje
+                                self.board[row][col] = Queen(p.color)
+                            
+                            # Markér at kongen/tårnet har bevæget sig (for rokade)
+                            if p.name == 'K' or p.name == 'R':
+                                p.has_moved = True
+                            
+                            self.selected_piece = None
+                            self.possible_moves = []
+
+                            if self.ai.is_game_over(self.board):
+                                self.game_over = True
+                                self.winner_text = "Sort vinder!" if self.ai.find_king(self.board, 'w') is None else "Hvid vinder!"
+                                self.state = STATE_GAME_OVER
+                            else:
+                                self.human_turn = False
+                        elif piece and piece.color == 'w':
+                            # Vælg en ny brik
+                            self.selected_piece = (row, col, piece)
+                            self.possible_moves = self.get_valid_moves(row, col, piece)
                         else:
-                            self.human_turn = False
+                            self.selected_piece = None
+                            self.possible_moves = []
                     elif piece and piece.color == 'w':
-                        # Vælg en ny brik
                         self.selected_piece = (row, col, piece)
                         self.possible_moves = self.get_valid_moves(row, col, piece)
-                    else:
-                        self.selected_piece = None
-                        self.possible_moves = []
-                elif piece and piece.color == 'w':
-                    self.selected_piece = (row, col, piece)
-                    self.possible_moves = self.get_valid_moves(row, col, piece)
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_p:  # Tryk på "P" for at pause og genoptage spillet
+                self.is_paused = not self.is_paused  # Skift pause-tilstand
+                self.selected_piece = None
+                self.possible_moves = []  # Ryd mulige træk, når spillet pauses
+
     
     def _verify_castling_path(self, board, row, start_col, end_col, color):
         """
