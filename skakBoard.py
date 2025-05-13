@@ -403,14 +403,33 @@ class ChessGame:
         """Finder lovlige træk for en brik, der ikke efterlader kongen i skak"""
         all_moves = piece.get_possible_moves(self.board, row, col)
         valid_moves = []
+        
+        # Debug print to see all possible moves
+        print(f"All possible moves for {piece.name} at ({row}, {col}): {all_moves}")
+        
         for move in all_moves:
             # Test hvert træk for at se, om det efterlader kongen i skak
             temp_board = deepcopy(self.board)
             temp_board[move[0]][move[1]] = piece
             temp_board[row][col] = None
-            king_pos = self.ai.find_king(temp_board, 'w')
-            if king_pos and not self.ai.is_in_check(temp_board, 'w'):
+            
+            # Find king position after the move
+            king_pos = self.ai.find_king(temp_board, piece.color)
+            if piece.name == 'K':  # If moving the king, update king position
+                king_pos = (move[0], move[1])
+                
+            # Check if the move is legal (doesn't leave king in check)
+            if king_pos and not self.ai.is_in_check(temp_board, piece.color, king_pos):
                 valid_moves.append(move)
+                print(f"Valid move found: {move}")  # Debug print
+        
+        # If no valid moves found for king in check, check for checkmate
+        if len(valid_moves) == 0 and piece.name == 'K' and self.ai.is_in_check(self.board, piece.color):
+            if self.ai.is_checkmate(self.board, piece.color):
+                print("Checkmate detected!")
+                self.game_over = True
+                self.winner_text = "Sort vinder!" if piece.color == 'w' else "Hvid vinder!"
+        
         return valid_moves
     
     def handle_game_event(self, event):
