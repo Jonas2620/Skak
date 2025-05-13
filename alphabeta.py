@@ -179,12 +179,12 @@ class ChessAI:
         values = {'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 2000}
         return values.get(piece.name.upper(), 0) * (1 if piece.color == 'w' else -1)
 
-    def get_all_moves(self, board, color):
+    def get_all_moves(self, board, color, flipped=False):
         moves = []
         for r, row in enumerate(board):
             for c, p in enumerate(row):
                 if p and p.color == color:
-                    piece_moves = p.get_possible_moves(board, r, c)
+                    piece_moves = p.get_possible_moves(board, r, c, flipped=flipped)
                     # Filtrér træk der ville efterlade kongen i skak
                     for move in piece_moves:
                         temp_board, undo_data = self.make_move(deepcopy(board), (r, c, move[0], move[1]), return_undo=True)
@@ -212,16 +212,16 @@ class ChessAI:
 
         return False
 
-    def is_in_check(self, board, king_position, color):
+    def is_in_check(self, board, king_position, color, flipped=False):
         king_row, king_col = king_position
         opponent_color = 'b' if color == 'w' else 'w'
 
-        # Tjek alle modstanderens brikker for at se, om de truer kongen
+    # Tjek alle modstanderens brikker for at se, om de truer kongen
         for row in range(8):
             for col in range(8):
                 piece = board[row][col]
                 if piece and piece.color == opponent_color:
-                    moves = piece.get_possible_moves(board, row, col)
+                    moves = piece.get_possible_moves(board, row, col, flipped=flipped)
                     if (king_row, king_col) in moves:
                         return True
         return False

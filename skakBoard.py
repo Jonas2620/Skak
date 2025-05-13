@@ -6,7 +6,7 @@ from alphabeta import ChessAI
 from skakPieces import Pawn, Rook, Knight, Bishop, Queen, King
 
 # Skærmindstillinger
-WIDTH, HEIGHT = 800, 650
+WIDTH, HEIGHT = 700, 700
 ROWS, COLS = 8, 8
 SQUARE_SIZE = WIDTH // COLS
 
@@ -143,17 +143,6 @@ def handle_slider(x, y, width, value, min_val, max_val, mouse_pos, mouse_pressed
             # Afrund til heltal og begræns indenfor min/max
             return max(min_val, min(max_val, round(new_value)))
     return value
-
-def draw_flip_button(screen):
-    button_rect = pygame.Rect(WIDTH - 120, HEIGHT - 40, 110, 30)
-    pygame.draw.rect(screen, (150, 150, 150), button_rect)
-    pygame.draw.rect(screen, (0, 0, 0), button_rect, 2)
-    
-    font = pygame.font.SysFont("Arial", 16)
-    button_text = font.render("Vend bræt", True, (0, 0, 0))
-    screen.blit(button_text, (WIDTH - 105, HEIGHT - 35))
-    
-    return button_rect
 
 def show_difficulty_settings(screen):
     font = pygame.font.SysFont("Arial", 48)
@@ -329,6 +318,49 @@ def show_game_over_menu(screen, winner_text):
                 elif quit_btn.collidepoint(event.pos):
                     pygame.quit()
                     sys.exit()
+                    
+def get_possible_moves_for_selected_piece(board, piece, row, col, board_flipped=False):
+    """Get possible moves for a piece that don't leave the king in check"""
+    all_moves = piece.get_possible_moves(board, row, col, flipped=board_flipped)
+    possible_moves = []
+    
+    # Filtering out moves that would leave the king in check
+    for move in all_moves:
+        # Create a copy of the board to test the move
+        temp_board = deepcopy(board)
+        temp_board[move[0]][move[1]] = piece
+        temp_board[row][col] = None
+        
+        # Find the king position after the move
+        king_pos = find_king(temp_board, piece.color)
+        if king_pos and not is_in_check(temp_board, king_pos, piece.color, flipped=board_flipped):
+            possible_moves.append(move)
+    
+    return possible_moves
+
+def find_king(board, color):
+    """Find the king's position on the board"""
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece and piece.name == 'K' and piece.color == color:
+                return (row, col)
+    return None
+
+def is_in_check(board, king_position, color, flipped=False):
+    """Check if the king is in check"""
+    king_row, king_col = king_position
+    opponent_color = 'b' if color == 'w' else 'w'
+
+    # Check all opponent pieces to see if they threaten the king
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece and piece.color == opponent_color:
+                moves = piece.get_possible_moves(board, row, col, flipped=flipped)
+                if (king_row, king_col) in moves:
+                    return True
+    return False
 
 def main():
     pygame.init()
@@ -378,8 +410,6 @@ def main():
             highlight_selected(screen, selected_piece)
             draw_possible_moves(screen, possible_moves)
             show_thinking_indicator(screen, ai_thinking)
-            
-            flip_button = draw_flip_button(screen)
 
             if not game_over:
                 white_king_pos = ai.find_king(board, 'w')
@@ -429,16 +459,6 @@ def main():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     return
-                
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    # Håndter klik på "Vend bræt" knappen
-                    if flip_button.collidepoint(event.pos):
-                        # Vend brættet
-                        board_flipped = not board_flipped
-                        
-                        # Opdater brættet baseret på den nye orientering
-                        # Vi holder fast i det nuværende bræt, men ændrer renderingen
-                        continue
 
                 if event.type == pygame.MOUSEBUTTONDOWN and human_turn and not game_over:
                     square = get_square_under_mouse()
@@ -447,9 +467,9 @@ def main():
                         piece = board[row][col]
 
                         if selected_piece:
+                            r1, c1, p = selected_piece
                             if (row, col) in possible_moves:
                                 # Udfør trækket
-                                r1, c1, p = selected_piece
                                 board[row][col] = p
                                 board[r1][c1] = None
                                 last_move = (r1, c1, row, col)
@@ -462,20 +482,22 @@ def main():
                                     winner_text = "Sort vinder!" if ai.find_king(board, 'w') is None else "Hvid vinder!"
                                 else:
                                     human_turn = False
+                                    
                             elif piece and piece.color == 'w':
                                 # Vælg en ny brik
                                 selected_piece = (row, col, piece)
                                 possible_moves = []
                                 
                                 # Filtrér kun de lovlige træk der ikke efterlader kongen i skak
-                                all_moves = piece.get_possible_moves(board, row, col)
+                                all_moves = piece.get_possible_moves(board, row, col, flipped=board_flipped)
                                 for move in all_moves:
                                     temp_board = deepcopy(board)
                                     temp_board[move[0]][move[1]] = piece
                                     temp_board[row][col] = None
                                     king_pos = ai.find_king(temp_board, 'w')
-                                    if king_pos and not ai.is_in_check(temp_board, king_pos, 'w'):
+                                    if king_pos and not ai.is_in_check(temp_board, king_pos, 'w', flipped=board_flipped):
                                         possible_moves.append(move)
+                
                             else:
                                 selected_piece = None
                                 possible_moves = []

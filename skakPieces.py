@@ -1,10 +1,12 @@
+
+
 class Piece:
     def __init__(self, color, name):
         self.color = color  # 'w' eller 'b'
         self.name = name    # f.eks. 'P', 'R', 'N', 'B', 'Q', 'K'
         self.image = f"{color}{name}.png"
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         #base klasse for possible moves, returnere 
         return []
 
@@ -16,9 +18,16 @@ class Pawn(Piece):
     def __init__(self, color):
         super().__init__(color, "P")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         moves = []
-        direction = -1 if self.color == 'w' else 1  # Bevægelsesretning for "w" og "b"
+        # Juster retning baseret på farve og om brættet er vendt
+        direction = -1 if self.color == 'w' else 1
+        if flipped:
+            direction = -direction  # Vend retningen, hvis brættet er vendt
+
+        # Juster startpositioner baseret på om brættet er vendt
+        white_start_row = 6 if not flipped else 1
+        black_start_row = 1 if not flipped else 6
 
         # Bevæge sig ét felt fremad (hvis ikke blokeret)
         if 0 <= row + direction < 8 and board[row + direction][col] is None:
@@ -32,17 +41,16 @@ class Pawn(Piece):
                 moves.append((row + direction, col + 1))
 
         # Dobbelttræk på første række (hvis ikke blokeret)
-        if (self.color == 'w' and row == 6 or self.color == 'b' and row == 1) and board[row + direction * 2][col] is None:
+        is_first_move_row = (self.color == 'w' and row == white_start_row) or (self.color == 'b' and row == black_start_row)
+        if is_first_move_row and 0 <= row + direction * 2 < 8 and board[row + direction][col] is None and board[row + direction * 2][col] is None:
             moves.append((row + direction * 2, col))
 
         return moves
-
-
 class Rook(Piece):
     def __init__(self, color):
         super().__init__(color, "R")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         moves = []
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Up, Down, Left, Right
 
@@ -68,7 +76,7 @@ class Knight(Piece):
     def __init__(self, color):
         super().__init__(color, "N")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         moves = []
         knight_moves = [(-2, -1), (-1, -2), (1, -2), (2, -1), (2, 1), (1, 2), (-1, 2), (-2, 1)]
 
@@ -85,7 +93,7 @@ class Bishop(Piece):
     def __init__(self, color):
         super().__init__(color, "B")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         moves = []
         directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)]  # Diagonale bevægelser
 
@@ -111,18 +119,18 @@ class Queen(Piece):
     def __init__(self, color):
         super().__init__(color, "Q")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         # Kombinerer Rook og Bishop
         rook = Rook(self.color)
         bishop = Bishop(self.color)
-        return rook.get_possible_moves(board, row, col) + bishop.get_possible_moves(board, row, col)
+        return rook.get_possible_moves(board, row, col, flipped=False) + bishop.get_possible_moves(board, row, col, flipped=False)
 
 
 class King(Piece):
     def __init__(self, color):
         super().__init__(color, "K")
 
-    def get_possible_moves(self, board, row, col):
+    def get_possible_moves(self, board, row, col, flipped=False):
         moves = []
         king_moves = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
