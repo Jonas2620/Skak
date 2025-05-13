@@ -188,34 +188,49 @@ class ChessAI:
         thread = threading.Thread(target=worker)
         thread.daemon = True
         thread.start()
-    
+
     def sort_moves(self, board, moves, color):
+        """Sort moves to improve alpha-beta pruning and balance offense/defense"""
         move_scores = []
+
         for move in moves:
             r1, c1, r2, c2 = move
             piece = board[r1][c1]
             target = board[r2][c2]
 
             score = 0
-            if target:
-                victim_value = self.piece_value(target)
-                aggressor_value = self.piece_value(piece)
-                score += 10 * victim_value - aggressor_value
 
-            score += self.CENTER_CONTROL_BONUS[r2][c2] * 0.5
+        # Prioritize captures with MVV-LVA + threat analysis
+        if target:
+            victim_value = self.piece_value(target)
+            aggressor_value = self.piece_value(piece)
+            score += 15 * victim_value - 0.5 * aggressor_value  # Stronger attack bias
 
-            if self.is_opening(board) and piece.name in ['N', 'B'] and (r1 == 0 or r1 == 7):
-                score += 50
+            # Check if trade is favorable (our attackers > their defenders)
+            enemy_defenders = self.count_attacks_on_square(board, r2, c2, 'b' if color == 'w' else 'w')
+            our_attackers = self.count_attacks_on_square(board, r2, c2, color)
+            if our_attackers > enemy_defenders:
+                score += 20  # Good opportunity to trade
 
-            new_board, _ = self.make_move(deepcopy(board), move)
-            opponent_color = 'b' if color == 'w' else 'w'
-            opponent_king_pos = self.find_king(new_board, opponent_color)
-            if opponent_king_pos and self.is_in_check(new_board, opponent_color, opponent_king_pos):
-                score += 50  # slightly higher bonus for giving check
+        # Center control bonus
+        score += self.CENTER_CONTROL_BONUS[r2][c2] * 0.5
 
-            move_scores.append((move, score))
+        # Opening development bonus
+        if self.is_opening(board) and piece.name in ['N', 'B'] and (r1 == 0 or r1 == 7):
+            score += 50
 
-        return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
+        # Bonus for giving check
+        new_board, _ = self.make_move(deepcopy(board), move)
+        opponent_color = 'b' if color == 'w' else 'w'
+        opponent_king_pos = self.find_king(new_board, opponent_color)
+        if opponent_king_pos and self.is_in_check(new_board, opponent_color, opponent_king_pos):
+            score += 50
+
+        move_scores.append((move, score))
+
+    # Sort by score (descending for white, ascending for black)
+    return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
+
         
     def is_opening(self, board):
         """Check if we're in the opening phase of the game"""
@@ -305,119 +320,116 @@ class ChessAI:
     def board_to_key(self, board):
         """Convert board to a hashable key for the transposition table"""
         return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
-
+   
     def evaluate_board(self, board):
-        """Enhanced evaluation function with multiple strategic parameters"""
+        """Enhanced evaluation function with strategic offense and defense balance"""
         value = 0
-        white_piece_count = 0
-        black_piece_count = 0
-        
         white_material = 0
         black_material = 0
-        
         white_pawns_by_file = [0] * 8
         black_pawns_by_file = [0] * 8
-        
-        # Phase determination
-        total_pieces = sum(1 for row in board for p in row if p is not None)
-        game_phase = self.determine_game_phase(total_pieces)
-        
-        # Count pieces and calculate material
-        for r, row in enumerate(board):
-            for c, p in enumerate(row):
-                if p:
-                    if p.color == 'w':
-                        white_piece_count += 1
-                        white_material += self.piece_value(p, game_phase)
-                        if p.name == 'P':
-                            white_pawns_by_file[c] += 1
-                    else:
-                        black_piece_count += 1
-                        black_material += self.piece_value(p, game_phase)
-                        if p.name == 'P':
-                            black_pawns_by_file[c] += 1
-        
-        # Material balance
-        value = white_material - black_material
-        
-        # Board position value for all pieces
-        white_position_value = 0
-        black_position_value = 0
-        
-        # Mobility
-        white_mobility = 0
-        black_mobility = 0
-        
-        # Pawn structure
-        white_pawn_structure = 0
-        black_pawn_structure = 0
-        
-        # King safety
-        white_king_safety = 0
-        black_king_safety = 0
-        
-        # Find king positions
-        white_king_pos = self.find_king(board, 'w')
-        black_king_pos = self.find_king(board, 'b')
-        
-        # Evaluate all pieces on the board
-        for r, row in enumerate(board):
-            for c, p in enumerate(row):
-                if not p:
-                    continue
-                    
-                # Position evaluation based on piece type
-                position_value = self.get_position_value(p.name, r, c, game_phase == 'endgame', p.color)
-                
-                # Mobility (number of legal moves)
-                possible_moves = p.get_possible_moves(board, r, c)
-                mobility_value = len(possible_moves) * self.MOBILITY_BONUS.get(p.name, 0)
-                
+
+       total_pieces = sum(1 for row in board for p in row if p is not None)
+       game_phase = self.determine_game_phase(total_pieces)
+
+       for r, row in enumerate(board):
+           for c, p in enumerate(row):
+               if p:
                 if p.color == 'w':
-                    white_position_value += position_value
-                    white_mobility += mobility_value
-                    
-                    # Pawn structure evaluation for white
+                    white_material += self.piece_value(p, game_phase)
                     if p.name == 'P':
-                        white_pawn_structure += self.evaluate_pawn_structure(board, r, c, 'w', white_pawns_by_file)
+                        white_pawns_by_file[c] += 1
                 else:
-                    black_position_value += position_value
-                    black_mobility += mobility_value
-                    
-                    # Pawn structure evaluation for black
+                    black_material += self.piece_value(p, game_phase)
                     if p.name == 'P':
-                        black_pawn_structure += self.evaluate_pawn_structure(board, r, c, 'b', black_pawns_by_file)
-        
-        # Evaluate king safety if kings are on the board
-        if white_king_pos:
-            white_king_safety = self.evaluate_king_safety(board, white_king_pos, 'w', game_phase)
-        
-        if black_king_pos:
-            black_king_safety = self.evaluate_king_safety(board, black_king_pos, 'b', game_phase)
-        
-        # Add all components to the final evaluation
-        value += (white_position_value - black_position_value)
-        value += (white_mobility - black_mobility)
-        value += (white_pawn_structure - black_pawn_structure)
-        value += (white_king_safety - black_king_safety)
-        
-        # Add bonus for development in the opening
-        if game_phase == 'opening':
-            white_development = self.calculate_development(board, 'w')
-            black_development = self.calculate_development(board, 'b')
-            value += (white_development - black_development) * 10
-        
-        # Add bonuses for center control
-        value += self.evaluate_center_control(board)
-        
-        # Add bonuses for piece coordination
-        value += self.evaluate_piece_coordination(board)
-        
-        # Endgame-specific evaluations
-        if game_phase == 'endgame':
-            value += self.evaluate_endgame(board, white_king_pos, black_king_pos)
-            
-        return value
+                        black_pawns_by_file[c] += 1
+
+    value = white_material - black_material
+    white_position_value = 0
+    black_position_value = 0
+    white_mobility = 0
+    black_mobility = 0
+    white_pawn_structure = 0
+    black_pawn_structure = 0
+    white_king_safety = 0
+    black_king_safety = 0
+    white_king_pos = self.find_king(board, 'w')
+    black_king_pos = self.find_king(board, 'b')
+
+    for r, row in enumerate(board):
+        for c, p in enumerate(row):
+            if not p:
+                continue
+
+            position_value = self.get_position_value(p.name, r, c, game_phase == 'endgame', p.color)
+            possible_moves = p.get_possible_moves(board, r, c)
+            mobility_value = len(possible_moves) * self.MOBILITY_BONUS.get(p.name, 0)
+
+            if p.color == 'w':
+                white_position_value += position_value
+                white_mobility += mobility_value
+                if p.name == 'P':
+                    white_pawn_structure += self.evaluate_pawn_structure(board, r, c, 'w', white_pawns_by_file)
+            else:
+                black_position_value += position_value
+                black_mobility += mobility_value
+                if p.name == 'P':
+                    black_pawn_structure += self.evaluate_pawn_structure(board, r, c, 'b', black_pawns_by_file)
+
+    if white_king_pos:
+        white_king_safety = self.evaluate_king_safety(board, white_king_pos, 'w', game_phase)
+    if black_king_pos:
+        black_king_safety = self.evaluate_king_safety(board, black_king_pos, 'b', game_phase)
+
+    # Add positional, mobility, structure and king safety differences
+    value += (white_position_value - black_position_value)
+    value += (white_mobility - black_mobility)
+    value += (white_pawn_structure - black_pawn_structure)
+    value += (white_king_safety - black_king_safety)
+
+    # Opening development
+    if game_phase == 'opening':
+        white_dev = self.calculate_development(board, 'w')
+        black_dev = self.calculate_development(board, 'b')
+        value += (white_dev - black_dev) * 10
+
+    # Center control and coordination
+    value += self.evaluate_center_control(board)
+    value += self.evaluate_piece_coordination(board)
+
+    # Endgame positioning
+    if game_phase == 'endgame':
+        value += self.evaluate_endgame(board, white_king_pos, black_king_pos)
+
+    # Threats (attacking opponent's valuable pieces)
+    threat_score = 0
+    for r in range(8):
+        for c in range(8):
+            p = board[r][c]
+            if p:
+                if p.color == 'w':
+                    threat_score += self.evaluate_threat(board, r, c, 'w')
+                else:
+                    threat_score -= self.evaluate_threat(board, r, c, 'b')
+    value += threat_score
+
+    return value
+
+    def evaluate_threat(self, board, r, c, color):
+    """Evaluate threats made by this piece against enemy high-value targets"""
+    piece = board[r][c]
+    if not piece:
+        return 0
+
+    score = 0
+    moves = piece.get_possible_moves(board, r, c)
+    for mr, mc in moves:
+        target = board[mr][mc]
+        if target and target.color != color:
+            score += self.piece_value(target) // 10  # Queen = 90, Knight = 32 → +9, +3, etc.
+
+    return score
+
 
     def evaluate_endgame(self, board, white_king_pos, black_king_pos):
         """Evaluate endgame-specific factors"""
