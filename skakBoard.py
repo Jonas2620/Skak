@@ -8,7 +8,7 @@ from skakPieces import Piece, Pawn, Rook, Knight, Bishop, Queen, King
 from copy import deepcopy
 
 # Skærmindstillinger
-WIDTH, HEIGHT = 800, 800
+WIDTH, HEIGHT = 650, 650
 ROWS, COLS = 8, 8
 SQUARE_SIZE = WIDTH // COLS
 
@@ -282,15 +282,13 @@ class ChessGame:
             
             pygame.display.flip()
             
-        for event in pygame.event.get():
-             if event.type == pygame.QUIT:
-              pygame.quit()
-              sys.exit()
-             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-        # Tryk Z for at undo det sidste træk
-              self.undo_move()
-             else:
-              self.handle_game_event(event)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if start_btn.collidepoint(event.pos):
+                        running = False 
         
         # Gem de valgte dybder
         self.difficulty_settings = {
@@ -399,6 +397,7 @@ class ChessGame:
         self.last_move = None
         self.ai_thinking = False
         self.state = STATE_GAME
+    
     
     def get_valid_moves(self, row, col, piece):
         """Finder lovlige træk for en brik, der ikke efterlader kongen i skak"""
@@ -645,6 +644,8 @@ class ChessGame:
         """Kører hovedspiløjfen"""
         while True:
             if self.state == STATE_MENU:
+                self.show_start_menu()
+            elif self.state == STATE_MENU:
                 self.show_start_menu()
             elif self.state == STATE_SETTINGS:
                 self.show_difficulty_settings()
