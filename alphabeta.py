@@ -1004,3 +1004,19 @@ class ChessAI:
         }.get(name)
         
         return table[r][c] if table else 0
+
+    def is_checkmate(self, board, color):
+        """
+        Checks if the given color is in checkmate.
+        Returns True if in checkmate, False otherwise.
+        """
+        # First check if the king is in check
+        king_pos = self.find_king(board, color)
+        if not king_pos or not self.is_in_check(board, color, king_pos):
+            return False
+
+        # Get all possible moves for the color
+        all_moves = self.get_all_moves(board, color)
+        
+        # If there are any legal moves, it's not checkmate
+        return len(all_moves) == 0
