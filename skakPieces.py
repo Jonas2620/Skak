@@ -234,8 +234,24 @@ class King(Piece):
         
         Inkluderer:
         - Normale træk (1 felt i alle retninger)
-        - Rochade (hvis betingelserne er opfyldt)
+        - Rokade (hvis betingelserne er opfyldt)
         """
+        # Hvis vi kun tjekker angreb, returner normale angrebsfelter
+        if include_attacks:
+            moves = []
+            king_moves = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+            for d_row, d_col in king_moves:
+                new_row, new_col = row + d_row, col + d_col
+                
+                if not self.is_valid_position(new_row, new_col):
+                    continue
+                    
+                moves.append((new_row, new_col))
+
+            return moves
+
+        # Normale træk og rokade-muligheder
         moves = []
         king_moves = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
@@ -246,57 +262,143 @@ class King(Piece):
             if not self.is_valid_position(new_row, new_col):
                 continue
                 
-            if board[new_row][new_col] is None or include_attacks or (
+            if board[new_row][new_col] is None or (
                 isinstance(board[new_row][new_col], Piece) and board[new_row][new_col].color != self.color
             ):
                 moves.append((new_row, new_col))
 
-        # Rochade (castling) - kun hvis vi ikke er i include_attacks mode
-        if not include_attacks and not self.has_moved:
-            # Tjek kingside castling (short castling)
-            if self._can_castle_kingside(board, row, col):
-                moves.append((row, col + 2))
-                
-            # Tjek queenside castling (long castling)
-            if self._can_castle_queenside(board, row, col):
-                moves.append((row, col - 2))
+        # Rokade-betingelser
+        # Kingside rokade (kort rokade)
+        if self._check_kingside_castling(board, row, col):
+            moves.append((row, col + 2))
+
+        # Queenside rokade (lang rokade)
+        if self._check_queenside_castling(board, row, col):
+            moves.append((row, col - 2))
 
         return moves
     
-    def _can_castle_kingside(self, board: list, row: int, col: int) -> bool:
-        """Tjekker om kingside (kort) rochade er mulig."""
-        # Kongen må ikke have flyttet sig, og tårnet må ikke have flyttet sig
-        if self.has_moved or col + 3 >= 8:
+    def _check_kingside_castling(self, board: list, row: int, col: int) -> bool:
+        """Tjekker om kingside (kort) rokade er mulig."""
+        # Kongen må ikke have flyttet sig
+        if self.has_moved:
             return False
-            
-        rook_pos = board[row][col + 3]
-        if not isinstance(rook_pos, Rook) or rook_pos.color != self.color or rook_pos.has_moved:
+        
+        # Tjek om der er et tårn på kingside
+        kingside_rook_col = 7
+        if not (0 <= kingside_rook_col < 8):
             return False
-            
-        # Felterne mellem kongen og tårnet skal være tomme
+        
+        rook = board[row][kingside_rook_col]
+        if not isinstance(rook, Rook) or rook.color != self.color or rook.has_moved:
+            return False
+        
+        # Tjek om felterne mellem kongen og tårnet er tomme
         if board[row][col + 1] is not None or board[row][col + 2] is not None:
             return False
-            
-        # Kongen må ikke være i skak, og felterne kongen passerer må ikke være under angreb
-        # Dette vil normalt blive tjekket af skaklogikken efter dette træk returneres
+        
+        # Verificer at ingen felter er truet under rokaden
+        return self._verify_castling_path(board, row, col, col + 2)
+    
+    def _check_queenside_castling(self, board: list, row: int, col: int) -> bool:
+        """Tjekker om queenside (lang) rokade er mulig."""
+        # Kongen må ikke have flyttet sig
+        if self.has_moved:
+            return False
+        
+        # Tjek om der er et tårn på queenside
+        queenside_rook_col = 0
+        if not (0 <= queenside_rook_col < 8):
+            return False
+        
+        rook = board[row][queenside_rook_col]
+        if not isinstance(rook, Rook) or rook.color != self.color or rook.has_moved:
+            return False
+        
+        # Tjek om felterne mellem kongen og tårnet er tomme
+        if board[row][col - 1] is not None or board[row][col - 2] is not None or board[row][col - 3] is not None:
+            return False
+        
+        # Verificer at ingen felter er truet under rokaden
+        return self._verify_castling_path(board, row, col, col - 2)
+    
+    def _verify_castling_path(self, board: list, row: int, start_col: int, end_col: int) -> bool:
+        """
+        Verificerer at ingen felter mellem start og slut kolonner er truet
+        
+        :param board: Hele skakbrættet
+        :param row: Kongens række
+        :param start_col: Startkolonne for kongen
+        :param end_col: Slutkolonne for kongen
+        :return: True hvis vejen er sikker, False ellers
+        """
+        # Bestem retningen for rokaden (positiv eller negativ)
+        step = 1 if end_col > start_col else -1
+        
+        # Tjek felterne kongen passerer
+        for current_col in range(start_col, end_col + step, step):
+            # Tjek om dette felt er truet af nogen modstanderbrikker
+            if self._is_square_under_attack(board, row, current_col):
+                return False
         
         return True
     
-    def _can_castle_queenside(self, board: list, row: int, col: int) -> bool:
-        """Tjekker om queenside (lang) rochade er mulig."""
-        # Kongen må ikke have flyttet sig, og tårnet må ikke have flyttet sig
-        if self.has_moved or col - 4 < 0:
-            return False
-            
-        rook_pos = board[row][col - 4]
-        if not isinstance(rook_pos, Rook) or rook_pos.color != self.color or rook_pos.has_moved:
-            return False
-            
-        # Felterne mellem kongen og tårnet skal være tomme
-        if board[row][col - 1] is not None or board[row][col - 2] is not None or board[row][col - 3] is not None:
-            return False
-            
-        # Kongen må ikke være i skak, og felterne kongen passerer må ikke være under angreb
-        # Dette vil normalt blive tjekket af skaklogikken efter dette træk returneres
+    def _is_square_under_attack(self, board: list, target_row: int, target_col: int) -> bool:
+        """
+        Tjekker om et felt er truet af modstanderbrikker
         
-        return True
+        :param board: Hele skakbrættet
+        :param target_row: Række for det felt der tjekkes
+        :param target_col: Kolonne for det felt der tjekkes
+        :return: True hvis feltet er truet, False ellers
+        """
+        # Gennemgå hele brættet
+        for row in range(8):
+            for col in range(8):
+                # Find modstanderbrikker
+                piece = board[row][col]
+                if isinstance(piece, Piece) and piece.color != self.color:
+                    # Få mulige angrebsfelter for denne brik
+                    attack_moves = piece.get_possible_moves(board, row, col, include_attacks=True)
+                    
+                    # Se om nogle af disse angrebsfelter rammer target-feltet
+                    if (target_row, target_col) in attack_moves:
+                        return True
+        
+        return False
+
+    @staticmethod
+    def perform_castling(board: list, king_row: int, king_col: int, dest_col: int) -> list:
+        """
+        Udfører rokaden ved at bytte plads mellem kongen og tårnet.
+        
+        Args:
+            board: Skakbrættet
+            king_row: Kongens nuværende række
+            king_col: Kongens nuværende kolonne
+            dest_col: Kongens destinationskolonne
+        
+        Returns:
+            Opdateret skakbræt efter rokaden
+        """
+        # Bestem tårnets nuværende kolonne baseret på rokaderetningen
+        rook_col = 7 if dest_col > king_col else 0
+        
+        # Bestem tårnets nye placering
+        rook_new_col = dest_col - 1 if dest_col > king_col else dest_col + 1
+        
+        # Hent kongen og tårnet
+        king = board[king_row][king_col]
+        rook = board[king_row][rook_col]
+        
+        # Flyt kongen
+        board[king_row][dest_col] = king
+        board[king_row][king_col] = None
+        king.has_moved = True
+        
+        # Flyt tårnet
+        board[king_row][rook_new_col] = rook
+        board[king_row][rook_col] = None
+        rook.has_moved = True
+        
+        return board

@@ -9,6 +9,14 @@ class ChessAI:
         self.depth = depth
         self.transposition_table = {}  # For more efficient alpha-beta search
         
+        # Stats tracking for alpha-beta pruning
+        self.stats = {
+            'nodes_evaluated': 0,
+            'alpha_cutoffs': 0,
+            'beta_cutoffs': 0,
+            'transposition_hits': 0
+        }
+        
         # Enhanced center control values with more nuanced weighting
         self.CENTER_CONTROL_BONUS = [
             [0, 0, 0, 0, 0, 0, 0, 0],
@@ -147,13 +155,41 @@ class ChessAI:
             'chain': 8,             # Bonus for pawn chains
             'protected': 12         # Bonus for protected pawns
         }
+        
+    def reset_stats(self):
+        """Reset the alpha-beta pruning statistics"""
+        self.stats = {
+            'nodes_evaluated': 0,
+            'alpha_cutoffs': 0,
+            'beta_cutoffs': 0,
+            'transposition_hits': 0
+        }
+        
+    def print_stats(self):
+        """Print alpha-beta pruning statistics to the terminal"""
+        print("\n=== Alpha-Beta Pruning Statistics ===")
+        print(f"Total nodes evaluated: {self.stats['nodes_evaluated']}")
+        print(f"Alpha cutoffs: {self.stats['alpha_cutoffs']}")
+        print(f"Beta cutoffs: {self.stats['beta_cutoffs']}")
+        print(f"Total cutoffs: {self.stats['alpha_cutoffs'] + self.stats['beta_cutoffs']}")
+        
+        # Calculate pruning efficiency only if nodes were evaluated
+        if self.stats['nodes_evaluated'] > 0:
+            pruning_efficiency = (self.stats['alpha_cutoffs'] + self.stats['beta_cutoffs']) / self.stats['nodes_evaluated'] * 100
+        else:
+            pruning_efficiency = 0
+            
+        print(f"Pruning efficiency: {pruning_efficiency:.2f}%")
+        print(f"Transposition table hits: {self.stats['transposition_hits']}")
+        print("===================================\n")
 
     def get_best_move(self, board, color):
         """Calculate and return the best move for the given color"""
+        self.reset_stats()  # Reset statistics before starting search
         self.transposition_table = {}  # Reset table for each new move
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
-
+    
         moves = self.get_all_moves(board, color)
         if not moves:
             return None  # No moves available
@@ -162,13 +198,29 @@ class ChessAI:
         moves = self.sort_moves(board, moves, color)
 
         for move in moves:
-            new_board, _ = self.make_move(deepcopy(board), move)
-            eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, maximizing=(color != 'w'))
+            new_board = deepcopy(board)
+            r1, c1, r2, c2 = move
+            piece = new_board[r1][c1]
+            new_board[r2][c2] = piece
+            new_board[r1][c1] = None
+            
+            # Clear king position cache when a move is made
+            self.king_positions_cache = {}
+            
+            if color == 'w':
+                # White aims to maximize the evaluation
+                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, False)
+                if eval_value > best_eval:
+                    best_eval = eval_value
+                    best_move = move
+            else:
+                # Black aims to minimize the evaluation
+                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, True)
+                if eval_value < best_eval:
+                    best_eval = eval_value
+                    best_move = move
 
-            if (color == 'w' and eval_value > best_eval) or (color == 'b' and eval_value < best_eval):
-                best_eval = eval_value
-                best_move = move
-
+        self.print_stats()
         return best_move
     
     def calculate_best_move_async(self, board, color, callback):
@@ -224,10 +276,12 @@ class ChessAI:
 
     def alphabeta(self, board, depth, alpha, beta, maximizing):
         """Alpha-beta pruning algorithm with move ordering for better pruning."""
+        self.stats['nodes_evaluated'] += 1
         board_key = self.board_to_key(board)
 
         # Check transposition table
         if board_key in self.transposition_table and self.transposition_table[board_key]['depth'] >= depth:
+            self.stats['transposition_hits'] += 1
             return self.transposition_table[board_key]['value']
 
         if depth == 0 or self.is_game_over(board):
@@ -248,28 +302,50 @@ class ChessAI:
                 return -20000 if maximizing else 20000  # Checkmate
             return 0  # Stalemate
 
+        prune_occurred = False  # Track if pruning happened
+        
         if maximizing:
             max_eval = -math.inf
             for move in moves:
-                board, undo_data = self.make_move(deepcopy(board), move, return_undo=True)
-                eval_value = self.alphabeta(board, depth - 1, alpha, beta, False)
-                self.undo_move(board, undo_data)
+                # Make a temporary move
+                new_board = deepcopy(board)
+                r1, c1, r2, c2 = move
+                piece = new_board[r1][c1]
+                new_board[r2][c2] = piece
+                new_board[r1][c1] = None
+                
+                eval_value = self.alphabeta(new_board, depth - 1, alpha, beta, False)
                 max_eval = max(max_eval, eval_value)
                 alpha = max(alpha, eval_value)
+                
                 if beta <= alpha:
+                    if not prune_occurred:  # Count cutoff only once per node
+                        self.stats['beta_cutoffs'] += 1
+                        prune_occurred = True
                     break  # Beta cutoff
+                    
             self.transposition_table[board_key] = {'value': max_eval, 'depth': depth}
             return max_eval
         else:
             min_eval = math.inf
             for move in moves:
-                board, undo_data = self.make_move(deepcopy(board), move, return_undo=True)
-                eval_value = self.alphabeta(board, depth - 1, alpha, beta, True)
-                self.undo_move(board, undo_data)
+                # Make a temporary move
+                new_board = deepcopy(board)
+                r1, c1, r2, c2 = move
+                piece = new_board[r1][c1]
+                new_board[r2][c2] = piece
+                new_board[r1][c1] = None
+                
+                eval_value = self.alphabeta(new_board, depth - 1, alpha, beta, True)
                 min_eval = min(min_eval, eval_value)
                 beta = min(beta, eval_value)
+                
                 if beta <= alpha:
+                    if not prune_occurred:  # Count cutoff only once per node
+                        self.stats['alpha_cutoffs'] += 1
+                        prune_occurred = True
                     break  # Alpha cutoff
+                    
             self.transposition_table[board_key] = {'value': min_eval, 'depth': depth}
             return min_eval
 
