@@ -2,6 +2,7 @@ import math
 from copy import deepcopy
 import threading
 from skakPieces import Piece
+import time
 
 class ChessAI:
     def __init__(self, depth=4):
@@ -185,46 +186,37 @@ class ChessAI:
 
     def get_best_move(self, board, color):
         """Calculate and return the best move for the given color"""
-        self.reset_stats()  # Reset statistics before starting search
-        self.transposition_table = {}  # Reset table for each new move
+        self.reset_stats()
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
-    
-        moves = self.get_all_moves(board, color)
+        
+        moves = self.sort_moves(board, self.get_all_moves(board, color), color)
+        
         if not moves:
-            return None  # No moves available
-
-        # Improved move sorting for better alpha-beta pruning
-        moves = self.sort_moves(board, moves, color)
-
+            return None
+            
         for move in moves:
-            new_board = deepcopy(board)
             r1, c1, r2, c2 = move
-            piece = new_board[r1][c1]
-            new_board[r2][c2] = piece
-            new_board[r1][c1] = None
+            temp_piece = board[r2][c2]
+            board[r2][c2] = board[r1][c1]
+            board[r1][c1] = None
             
-            # Clear king position cache when a move is made
-            self.king_positions_cache = {}
+            eval_value = self.alphabeta(board, self.depth - 1, -math.inf, math.inf, color == 'b')
             
-            if color == 'w':
-                # White aims to maximize the evaluation
-                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, False)
-                if eval_value > best_eval:
-                    best_eval = eval_value
-                    best_move = move
-            else:
-                # Black aims to minimize the evaluation
-                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, True)
-                if eval_value < best_eval:
-                    best_eval = eval_value
-                    best_move = move
-
-        self.print_stats()
+            board[r1][c1] = board[r2][c2]
+            board[r2][c2] = temp_piece
+            
+            if color == 'w' and eval_value > best_eval:
+                best_eval = eval_value
+                best_move = move
+            elif color == 'b' and eval_value < best_eval:
+                best_eval = eval_value
+                best_move = move
+                
         return best_move
     
     def calculate_best_move_async(self, board, color, callback):
-        """Calculate the best move asynchronously and call the callback function when ready"""
+        """Calculate the best move asynchronously"""
         def worker():
             best_move = self.get_best_move(board, color)
             callback(best_move)
@@ -234,52 +226,123 @@ class ChessAI:
         thread.start()
     
     def sort_moves(self, board, moves, color):
-        """Sort moves to improve alpha-beta pruning"""
+        """Forbedret move ordering"""
         move_scores = []
         
         for move in moves:
             r1, c1, r2, c2 = move
             piece = board[r1][c1]
             target = board[r2][c2]
-            
             score = 0
             
-            # Prioritize captures highly (MVV-LVA: Most Valuable Victim - Least Valuable Aggressor)
+            # MVV-LVA scoring (Most Valuable Victim - Least Valuable Aggressor)
             if target:
-                victim_value = self.piece_value(target)
-                aggressor_value = self.piece_value(piece)
-                score += 10 * victim_value - aggressor_value
+                score += 10 * self.piece_value(target) - self.piece_value(piece)
             
-            # Prioritize center control
-            score += self.CENTER_CONTROL_BONUS[r2][c2] * 0.5
-            
-            # Prioritize development in the opening
-            if self.is_opening(board) and piece.name in ['N', 'B'] and (r1 == 0 or r1 == 7):
-                score += 50
-                
-            # Prioritize moves that give check
-            new_board, _ = self.make_move(deepcopy(board), move)
-            opponent_color = 'b' if color == 'w' else 'w'
-            opponent_king_pos = self.find_king(new_board, opponent_color)
-            if opponent_king_pos and self.is_in_check(new_board, opponent_color, opponent_king_pos):
+            # Prioriter centrum kontrol højt
+            if 2 <= r2 <= 5 and 2 <= c2 <= 5:
                 score += 30
+            
+            # Bonusser for specifikke træk-typer
+            if target:  # Captures
+                score += 100
+            if self.gives_check(board, move, color):  # Check
+                score += 80
                 
+            # Pawn advancement bonus
+            if piece and piece.name == 'P':
+                if color == 'w':
+                    score += (7 - r2) * 5  # White pawns want to advance towards row 0
+                else:
+                    score += r2 * 5  # Black pawns want to advance towards row 7
+            
             move_scores.append((move, score))
         
-        # Sort based on score (descending for white, ascending for black)
-        return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
+        # Sorter træk efter score
+        return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=True)]
+
+    def gives_check(self, board, move, color):
+        """Tjek om et træk giver skak"""
+        r1, c1, r2, c2 = move
+        temp_piece = board[r2][c2]
+        board[r2][c2] = board[r1][c1]
+        board[r1][c1] = None
         
+        opponent_color = 'b' if color == 'w' else 'w'
+        king_pos = self.find_king(board, opponent_color)
+        gives_check = king_pos and self.is_in_check(board, opponent_color, king_pos)
+        
+        # Fortryd træk
+        board[r1][c1] = board[r2][c2]
+        board[r2][c2] = temp_piece
+        
+        return gives_check
+    
+    def pv_search(self, board, depth, alpha, beta, maximizing):
+        """Principal Variation Search"""
+        if depth == 0 or self.is_game_over(board):
+            return self.evaluate_board(board)
+        
+        moves = self.sort_moves(board, self.get_all_moves(board, 'w' if maximizing else 'b'), maximizing)
+        first_move = True
+        
+        if maximizing:
+            value = -math.inf
+            for move in moves:
+                r1, c1, r2, c2 = move
+                temp_piece = board[r2][c2]
+                board[r2][c2] = board[r1][c1]
+                board[r1][c1] = None
+                
+                if first_move:
+                    value = max(value, self.pv_search(board, depth - 1, alpha, beta, False))
+                    first_move = False
+                else:
+                    value = max(value, self.pv_search(board, depth - 1, alpha, alpha + 1, False))
+                    if value > alpha and value < beta:
+                        value = max(value, self.pv_search(board, depth - 1, alpha, beta, False))
+                
+                board[r1][c1] = board[r2][c2]
+                board[r2][c2] = temp_piece
+                
+                alpha = max(alpha, value)
+                if alpha >= beta:
+                    break
+            return value
+        else:
+            value = math.inf
+            for move in moves:
+                r1, c1, r2, c2 = move
+                temp_piece = board[r2][c2]
+                board[r2][c2] = board[r1][c1]
+                board[r1][c1] = None
+                
+                if first_move:
+                    value = min(value, self.pv_search(board, depth - 1, alpha, beta, True))
+                    first_move = False
+                else:
+                    value = min(value, self.pv_search(board, depth - 1, beta - 1, beta, True))
+                    if value > alpha and value < beta:
+                        value = min(value, self.pv_search(board, depth - 1, alpha, beta, True))
+                
+                board[r1][c1] = board[r2][c2]
+                board[r2][c2] = temp_piece
+                
+                beta = min(beta, value)
+                if alpha >= beta:
+                    break
+            return value
+    
     def is_opening(self, board):
         """Check if we're in the opening phase of the game"""
         piece_count = sum(1 for row in board for piece in row if piece is not None)
         return piece_count >= 28  # More than 28 pieces on the board
 
     def alphabeta(self, board, depth, alpha, beta, maximizing):
-        """Alpha-beta pruning algorithm with move ordering for better pruning."""
+        """Optimeret alpha-beta pruning uden deepcopy"""
         self.stats['nodes_evaluated'] += 1
         board_key = self.board_to_key(board)
 
-        # Check transposition table
         if board_key in self.transposition_table and self.transposition_table[board_key]['depth'] >= depth:
             self.stats['transposition_hits'] += 1
             return self.transposition_table[board_key]['value']
@@ -291,62 +354,47 @@ class ChessAI:
 
         color = 'w' if maximizing else 'b'
         moves = self.get_all_moves(board, color)
-
-        # Sort moves to improve pruning
         moves = self.sort_moves(board, moves, color)
 
-        if not moves:
-            # Checkmate or stalemate
-            king_pos = self.find_king(board, color)
-            if king_pos and self.is_in_check(board, color, king_pos):
-                return -20000 if maximizing else 20000  # Checkmate
-            return 0  # Stalemate
-
-        prune_occurred = False  # Track if pruning happened
-        
         if maximizing:
             max_eval = -math.inf
             for move in moves:
-                # Make a temporary move
-                new_board = deepcopy(board)
+                # Lav træk direkte på brættet i stedet for deepcopy
                 r1, c1, r2, c2 = move
-                piece = new_board[r1][c1]
-                new_board[r2][c2] = piece
-                new_board[r1][c1] = None
+                temp_piece = board[r2][c2]  # Gem den oprindelige brik
+                board[r2][c2] = board[r1][c1]
+                board[r1][c1] = None
+
+                eval_value = self.alphabeta(board, depth - 1, alpha, beta, False)
                 
-                eval_value = self.alphabeta(new_board, depth - 1, alpha, beta, False)
+                # Fortryd træk
+                board[r1][c1] = board[r2][c2]
+                board[r2][c2] = temp_piece
+
                 max_eval = max(max_eval, eval_value)
                 alpha = max(alpha, eval_value)
-                
                 if beta <= alpha:
-                    if not prune_occurred:  # Count cutoff only once per node
-                        self.stats['beta_cutoffs'] += 1
-                        prune_occurred = True
-                    break  # Beta cutoff
-                    
-            self.transposition_table[board_key] = {'value': max_eval, 'depth': depth}
+                    break
             return max_eval
         else:
             min_eval = math.inf
             for move in moves:
-                # Make a temporary move
-                new_board = deepcopy(board)
+                # Samme optimering for minimizing player
                 r1, c1, r2, c2 = move
-                piece = new_board[r1][c1]
-                new_board[r2][c2] = piece
-                new_board[r1][c1] = None
+                temp_piece = board[r2][c2]
+                board[r2][c2] = board[r1][c1]
+                board[r1][c1] = None
+
+                eval_value = self.alphabeta(board, depth - 1, alpha, beta, True)
                 
-                eval_value = self.alphabeta(new_board, depth - 1, alpha, beta, True)
+                # Fortryd træk
+                board[r1][c1] = board[r2][c2]
+                board[r2][c2] = temp_piece
+
                 min_eval = min(min_eval, eval_value)
                 beta = min(beta, eval_value)
-                
                 if beta <= alpha:
-                    if not prune_occurred:  # Count cutoff only once per node
-                        self.stats['alpha_cutoffs'] += 1
-                        prune_occurred = True
-                    break  # Alpha cutoff
-                    
-            self.transposition_table[board_key] = {'value': min_eval, 'depth': depth}
+                    break
             return min_eval
 
     def make_move(self, board, move, return_undo=False):
