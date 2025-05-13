@@ -1,10 +1,13 @@
 import math
+import time
 from copy import deepcopy
 import threading
 from skakPieces import Piece
 
 class ChessAI:
     def __init__(self, depth=4):
+        self.time_limit = 15
+        self.time_start = None
         self.cache = {}
         self.depth = depth
         self.transposition_table = {}  # For more efficient alpha-beta search
@@ -149,27 +152,32 @@ class ChessAI:
         }
 
     def get_best_move(self, board, color):
-        """Calculate and return the best move for the given color"""
-        self.transposition_table = {}  # Reset table for each new move
+        self.transposition_table = {}
+        self.time_start = time.time()
+        self.best_move_so_far = None  # Reset best move
+    
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
-
+    
         moves = self.get_all_moves(board, color)
         if not moves:
-            return None  # No moves available
-
-        # Improved move sorting for better alpha-beta pruning
+            return None
+    
         moves = self.sort_moves(board, moves, color)
-
         for move in moves:
+            if time.time() - self.time_start > self.time_limit:
+                break
+        
             new_board, _ = self.make_move(deepcopy(board), move)
             eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, maximizing=(color != 'w'))
-
+        
             if (color == 'w' and eval_value > best_eval) or (color == 'b' and eval_value < best_eval):
                 best_eval = eval_value
                 best_move = move
+                self.best_move_so_far = move  # Store current best move as fallback
+    
+         return best_move or self.best_move_so_far  # Use fallback if needed
 
-        return best_move
     
     def calculate_best_move_async(self, board, color, callback):
         """Calculate the best move asynchronously and call the callback function when ready"""
@@ -182,39 +190,31 @@ class ChessAI:
         thread.start()
     
     def sort_moves(self, board, moves, color):
-        """Sort moves to improve alpha-beta pruning"""
         move_scores = []
-        
         for move in moves:
             r1, c1, r2, c2 = move
             piece = board[r1][c1]
             target = board[r2][c2]
-            
+
             score = 0
-            
-            # Prioritize captures highly (MVV-LVA: Most Valuable Victim - Least Valuable Aggressor)
             if target:
                 victim_value = self.piece_value(target)
                 aggressor_value = self.piece_value(piece)
                 score += 10 * victim_value - aggressor_value
-            
-            # Prioritize center control
+
             score += self.CENTER_CONTROL_BONUS[r2][c2] * 0.5
-            
-            # Prioritize development in the opening
+
             if self.is_opening(board) and piece.name in ['N', 'B'] and (r1 == 0 or r1 == 7):
                 score += 50
-                
-            # Prioritize moves that give check
+
             new_board, _ = self.make_move(deepcopy(board), move)
             opponent_color = 'b' if color == 'w' else 'w'
             opponent_king_pos = self.find_king(new_board, opponent_color)
             if opponent_king_pos and self.is_in_check(new_board, opponent_color, opponent_king_pos):
-                score += 30
-                
+                score += 50  # slightly higher bonus for giving check
+
             move_scores.append((move, score))
-        
-        # Sort based on score (descending for white, ascending for black)
+
         return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
         
     def is_opening(self, board):
@@ -223,10 +223,11 @@ class ChessAI:
         return piece_count >= 28  # More than 28 pieces on the board
 
     def alphabeta(self, board, depth, alpha, beta, maximizing):
-        """Alpha-beta pruning algorithm with move ordering for better pruning."""
+        if time.time() - self.time_start > self.time_limit:
+            return self.evaluate_board(board)
+
         board_key = self.board_to_key(board)
 
-        # Check transposition table
         if board_key in self.transposition_table and self.transposition_table[board_key]['depth'] >= depth:
             return self.transposition_table[board_key]['value']
 
@@ -237,39 +238,42 @@ class ChessAI:
 
         color = 'w' if maximizing else 'b'
         moves = self.get_all_moves(board, color)
-
-        # Sort moves to improve pruning
         moves = self.sort_moves(board, moves, color)
 
         if not moves:
-            # Checkmate or stalemate
             king_pos = self.find_king(board, color)
             if king_pos and self.is_in_check(board, color, king_pos):
-                return -20000 if maximizing else 20000  # Checkmate
-            return 0  # Stalemate
+                return -20000 if maximizing else 20000
+            return 0
 
         if maximizing:
             max_eval = -math.inf
             for move in moves:
+                if time.time() - self.time_start > self.time_limit:
+                    break
+
                 board, undo_data = self.make_move(deepcopy(board), move, return_undo=True)
                 eval_value = self.alphabeta(board, depth - 1, alpha, beta, False)
                 self.undo_move(board, undo_data)
                 max_eval = max(max_eval, eval_value)
                 alpha = max(alpha, eval_value)
                 if beta <= alpha:
-                    break  # Beta cutoff
+                    break
             self.transposition_table[board_key] = {'value': max_eval, 'depth': depth}
             return max_eval
         else:
             min_eval = math.inf
             for move in moves:
+                if time.time() - self.time_start > self.time_limit:
+                    break
+
                 board, undo_data = self.make_move(deepcopy(board), move, return_undo=True)
                 eval_value = self.alphabeta(board, depth - 1, alpha, beta, True)
                 self.undo_move(board, undo_data)
                 min_eval = min(min_eval, eval_value)
                 beta = min(beta, eval_value)
                 if beta <= alpha:
-                    break  # Alpha cutoff
+                    break
             self.transposition_table[board_key] = {'value': min_eval, 'depth': depth}
             return min_eval
 
