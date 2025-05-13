@@ -155,28 +155,28 @@ class ChessAI:
         self.transposition_table = {}
         self.time_start = time.time()
         self.best_move_so_far = None  # Reset best move
-    
+
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
-    
+
         moves = self.get_all_moves(board, color)
         if not moves:
             return None
-    
+
         moves = self.sort_moves(board, moves, color)
         for move in moves:
             if time.time() - self.time_start > self.time_limit:
                 break
-        
+
             new_board, _ = self.make_move(deepcopy(board), move)
             eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, maximizing=(color != 'w'))
-        
+
             if (color == 'w' and eval_value > best_eval) or (color == 'b' and eval_value < best_eval):
                 best_eval = eval_value
                 best_move = move
                 self.best_move_so_far = move  # Store current best move as fallback
-    
-         return best_move or self.best_move_so_far  # Use fallback if needed
+
+        return best_move or self.best_move_so_far  # Use fallback if needed
 
     
     def calculate_best_move_async(self, board, color, callback):
