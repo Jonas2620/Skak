@@ -893,18 +893,22 @@ class ChessAI:
             for c in range(8):
                 piece = board[r][c]
                 if piece and piece.color == color:
-                    for move in piece.get_possible_moves(board, r, c):
+                    piece_moves = piece.get_possible_moves(board, r, c)
+                    for move in piece_moves:
                         # Make a temporary move
                         temp_board = deepcopy(board)
                         temp_board[move[0]][move[1]] = piece
                         temp_board[r][c] = None
 
-                        # Verify that the move doesn't leave the king in check
+                        # Update king position if the king is moving
                         king_pos = self.find_king(temp_board, color)
-                        if king_pos and not self.is_in_check(temp_board, color, king_pos):
+                        if piece.name == 'K':
+                            king_pos = (move[0], move[1])
+
+                        # Verify that the move doesn't leave the king in check
+                        if not self.is_in_check(temp_board, color, king_pos):
                             moves.append((r, c, move[0], move[1]))
         return moves
-
 
     def get_piece_moves(self,board, pos, piece):
         row, col = pos
