@@ -202,17 +202,17 @@ class ChessGame:
     def show_thinking_indicator(self):
         """Viser en indikator når AI'en tænker"""
         if self.ai_thinking:
-            thinking_text = self.small_font.render("AI tænker...", True, (0, 0, 0))
-            text_bg = pygame.Rect(WIDTH // 2 - 60, 10, 120, 30)
+            thinking_text = self.small_font.render("Let him cook", True, (0, 0, 0))
+            # Increase the box width from 140 to 200 and height stays at 40
+            text_bg = pygame.Rect(WIDTH // 2 - 100, 10, 200, 40)  # Changed width and x-position
             pygame.draw.rect(self.screen, (200, 200, 200), text_bg)
             pygame.draw.rect(self.screen, (0, 0, 0), text_bg, 2)
-            self.screen.blit(thinking_text, (WIDTH // 2 - 50, 15))
+            # Center the text in the larger box
+            text_x = WIDTH // 2 - thinking_text.get_width() // 2
+            self.screen.blit(thinking_text, (text_x, 15))
             pygame.display.update(text_bg)
     
     def draw_slider(self, x, y, width, value, min_val, max_val, label):
-        """Tegner en slider til indstillinger"""
-        pygame.draw.rect(self.screen, (200, 200, 200), (x, y, width, 10))
-        
         # Beregn position for slideren
         pos = x + ((value - min_val) / (max_val - min_val)) * width
         
