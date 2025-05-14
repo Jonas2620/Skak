@@ -388,7 +388,7 @@ class ChessGame:
     def start_new_game(self):
         """Starter et nyt spil"""
         self.board = self.initialize_board()
-        self.ai = ChessAI(depth=self.ai_depth)
+        self.ai = ChessAI(depth=1)  # Reduced depth, but with time management
         self.selected_piece = None
         self.possible_moves = []
         self.human_turn = True
