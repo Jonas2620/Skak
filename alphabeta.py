@@ -128,11 +128,11 @@ class ChessAI:
         
         # Dynamic piece values based on game phase
         self.PIECE_VALUES = {
-            'P': {'opening': 100, 'middlegame': 100, 'endgame': 150},
-            'N': {'opening': 320, 'middlegame': 320, 'endgame': 300},
-            'B': {'opening': 330, 'middlegame': 340, 'endgame': 350},
-            'R': {'opening': 500, 'middlegame': 510, 'endgame': 550},
-            'Q': {'opening': 900, 'middlegame': 920, 'endgame': 950},
+            'P': {'opening': 100, 'middlegame': 100, 'endgame': 200},  # Increased endgame value
+            'N': {'opening': 320, 'middlegame': 340, 'endgame': 320},  # Slightly higher middlegame
+            'B': {'opening': 330, 'middlegame': 350, 'endgame': 360},  # More valuable in later phases
+            'R': {'opening': 500, 'middlegame': 525, 'endgame': 575},  # More valuable in later phases
+            'Q': {'opening': 900, 'middlegame': 950, 'endgame': 975},  # Slightly higher value
             'K': {'opening': 2000, 'middlegame': 2000, 'endgame': 2000}
         }
         
@@ -255,7 +255,7 @@ class ChessAI:
         thread.start()
     
     def sort_moves(self, board, moves, color):
-        """Improved move ordering with check handling"""
+        """Improved move ordering with more aggressive evaluation"""
         move_scores = []
         king_pos = self.find_king(board, color)
         in_check = king_pos and self.is_in_check(board, color, king_pos)
@@ -266,7 +266,7 @@ class ChessAI:
             piece = board[r1][c1]
             target = board[r2][c2]
             
-            # If we're in check, prioritize moves that escape check
+            # If we're in check, still prioritize getting out of check
             if in_check:
                 temp_board = deepcopy(board)
                 temp_board[r2][c2] = piece
@@ -275,19 +275,63 @@ class ChessAI:
                 if not self.is_in_check(temp_board, color, new_king_pos):
                     score += 1000
             
-            # Existing scoring logic
+            # Capturing moves evaluation
             if target:
-                score += 10 * self.piece_value(target) - self.piece_value(piece)
+                # Base capture value
+                capture_value = self.piece_value(target)
+                attacker_value = self.piece_value(piece)
+                
+                # More aggressive scoring for favorable trades
+                if capture_value > attacker_value:
+                    # Bonus for capturing more valuable pieces
+                    score += (capture_value - attacker_value) * 2
+                else:
+                    # Still consider equal or slightly unfavorable trades
+                    score += capture_value - (attacker_value * 0.5)
+                    
+                # Extra bonus for capturing undefended pieces
+                if not self.is_square_defended(board, r2, c2, color):
+                    score += capture_value * 0.3
             
-            if piece.name == 'P' and (r2 == 0 or r2 == 7):
-                score += 900
+            # Positional aggression
+            if piece.name != 'K':  # Don't encourage aggressive king moves
+                # Bonus for moving towards enemy king
+                enemy_king_pos = self.find_king(board, 'b' if color == 'w' else 'w')
+                if enemy_king_pos:
+                    distance_to_king = abs(r2 - enemy_king_pos[0]) + abs(c2 - enemy_king_pos[1])
+                    score += (7 - distance_to_king) * 5  # Higher bonus for getting closer
             
-            if piece.name in ['N', 'B'] and 2 <= r2 <= 5 and 2 <= c2 <= 5:
-                score += 50
+            # Development and center control
+            if piece.name in ['N', 'B']:
+                if 2 <= r2 <= 5 and 2 <= c2 <= 5:
+                    score += 30  # Increased bonus for controlling center
+            
+            # Pawn advancement
+            if piece.name == 'P':
+                if color == 'w':
+                    score += (7 - r2) * 10  # Bonus for advancing
+                    if r2 <= 2:  # Extra bonus for deep advancement
+                        score += 50
+                else:
+                    score += r2 * 10
+                    if r2 >= 5:
+                        score += 50
             
             move_scores.append((move, score))
         
         return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color=='w'))]
+
+    def is_square_defended(self, board, row, col, attacking_color):
+        """Check if a square is defended by any piece of the given color"""
+        defending_color = 'b' if attacking_color == 'w' else 'w'
+        for r in range(8):
+            for c in range(8):
+                piece = board[r][c]
+                if piece and piece.color == defending_color:
+                    moves = piece.get_possible_moves(board, r, c, include_attacks=True)
+                    if (row, col) in moves:
+                        return True
+        return False
 
     def is_opening(self, board):
         """Check if we're in the opening phase of the game"""
