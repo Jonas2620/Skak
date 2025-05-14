@@ -37,7 +37,7 @@ class ChessGame:
         self.load_images()
         self.move_log = []    # Historik over træk
         self.is_paused = False  # For at kontrollere om spillet er sat på pause
-
+        self.player_color = None  
 
         
         # Standardsværhedsgrader
@@ -298,29 +298,30 @@ class ChessGame:
         }
         self.state = STATE_MENU
     
-    def show_start_menu(self):
-        """Viser startmenuen"""    
-        title = self.large_font.render("Velkommen til Skak!", True, (0, 0, 0))
+    def show_difficulty_menu(self):
+        """Viser sværhedsgrad menu efter farvevalg"""
+        title = self.large_font.render("Vælg Sværhedsgrad", True, (0, 0, 0))
         title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
 
         difficulty_options = [
             ("Let", self.difficulty_settings["let"]),
             ("Mellem", self.difficulty_settings["mellem"]),
             ("Svær", self.difficulty_settings["svær"]),
-            ("Tilpas indstillinger", 0)  # Specialværdi for at åbne indstillinger igen
+            ("Tilpas indstillinger", 0)
         ]
         
         buttons = []
         
         for i, (level, depth) in enumerate(difficulty_options):
             btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 + i * 70, 300, 60)
-            if i < 3:  # For sværhedsgraderne
+            if i < 3:
                 text = self.medium_font.render(f"{level} (Dybde {depth})", True, (255, 255, 255))
-            else:  # For "Tilpas indstillinger" knappen
+            else:
                 text = self.medium_font.render(level, True, (255, 255, 255))
             buttons.append((btn, text, depth))
 
-        while self.state == STATE_MENU:
+        running = True
+        while running:
             self.screen.fill((200, 200, 200))
             self.screen.blit(title, title_rect)
             
@@ -337,12 +338,51 @@ class ChessGame:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     for i, (btn, _, depth) in enumerate(buttons):
                         if btn.collidepoint(event.pos):
-                            if depth == 0:  # Hvis "Tilpas indstillinger" er valgt
+                            if depth == 0:
                                 self.state = STATE_SETTINGS
                                 return
                             self.ai_depth = depth
                             self.start_new_game()
                             return
+    
+    def show_start_menu(self):
+        """Viser startmenuen med farvevalg"""    
+        title = self.large_font.render("Velkommen til Skak!", True, (0, 0, 0))
+        title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 150))
+
+        # Color selection buttons
+        white_btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 - 50, 300, 60)
+        black_btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 + 50, 300, 60)
+        
+        white_text = self.medium_font.render("Spil som Hvid", True, (255, 255, 255))
+        black_text = self.medium_font.render("Spil som Sort", True, (255, 255, 255))
+
+        while self.state == STATE_MENU:
+            self.screen.fill((200, 200, 200))
+            self.screen.blit(title, title_rect)
+            
+            # Draw color selection buttons
+            pygame.draw.rect(self.screen, (0, 128, 0), white_btn)
+            pygame.draw.rect(self.screen, (0, 128, 0), black_btn)
+            
+            self.screen.blit(white_text, (white_btn.x + 65, white_btn.y + 15))
+            self.screen.blit(black_text, (black_btn.x + 65, black_btn.y + 15))
+            
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if white_btn.collidepoint(event.pos):
+                        self.player_color = 'w'
+                        self.show_difficulty_menu()
+                        return
+                    elif black_btn.collidepoint(event.pos):
+                        self.player_color = 'b'
+                        self.show_difficulty_menu()
+                        return
     
     def show_game_over_menu(self):
         """Viser spil slut menuen"""
@@ -388,10 +428,10 @@ class ChessGame:
     def start_new_game(self):
         """Starter et nyt spil"""
         self.board = self.initialize_board()
-        self.ai = ChessAI(depth=1)  # Reduced depth, but with time management
+        self.ai = ChessAI(depth=self.ai_depth)
         self.selected_piece = None
         self.possible_moves = []
-        self.human_turn = True
+        self.human_turn = self.player_color == 'w'  # Set initial turn based on color
         self.game_over = False
         self.winner_text = ""
         self.last_move = None
