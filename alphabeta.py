@@ -157,7 +157,7 @@ class ChessAI:
             'protected': 12         # Bonus for protected pawns
         }
         
-        self.max_time = 13  # Maximum time in seconds for a move
+        self.max_time = 14.5  # Maximum time in seconds for a move
         self.start_time = None
         self.nodes_searched = 0
 
