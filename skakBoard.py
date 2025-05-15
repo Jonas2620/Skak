@@ -564,40 +564,58 @@ class ChessGame:
         return False
     
     def ai_move_callback(self, best_move):
-        """Callback funktion til håndtering af AI træk"""
+        """Callback function to handle AI move"""
         if best_move:
-         r1, c1, r2, c2 = best_move
-         moved = self.board[r1][c1]
-         captured = self.board[r2][c2]
-         self.move_log.append((r1, c1, r2, c2, moved, captured))
+            print(f"AI move: {best_move}")
+            r1, c1, r2, c2 = best_move
+            moved = self.board[r1][c1]
+            captured = self.board[r2][c2]
+            self.move_log.append((r1, c1, r2, c2, moved, captured))
 
-         self.board[r2][c2] = moved
-         self.board[r1][c1] = None
-         self.last_move = best_move
+            self.board[r2][c2] = moved
+            self.board[r1][c1] = None
+            self.last_move = best_move
 
-            
-            # Bondeforvandling til dronning hvis en bonde når modstanderens baglinje
-         if self.board[r2][c2].name == 'P' and r2 == 7:  # Sort bonde når hvid baglinje
+            # Pawn promotion
+            if self.board[r2][c2] and self.board[r2][c2].name == 'P' and r2 == 7:  # Black pawn reaches white back rank
                 self.board[r2][c2] = Queen('b')
 
-        self.ai_thinking = False
-        self.human_turn = True
-        
-        if self.ai.is_game_over(self.board):
-            self.game_over = True
-            self.winner_text = "Hvid vinder!" if self.ai.find_king(self.board, 'b') is None else "Sort vinder!"
-            self.state = STATE_GAME_OVER
-        
-        self.human_turn = True
-    
+            self.ai_thinking = False
+            self.human_turn = True
+
+            if self.ai.is_game_over(self.board):
+                self.game_over = True
+                self.winner_text = "White wins!" if self.ai.find_king(self.board, 'b') is None else "Black wins!"
+                self.state = STATE_GAME_OVER
+        else:
+            print("AI did not find a move.")
+            self.ai_thinking = False
+            self.human_turn = True
     def update_game(self):
-        """Opdaterer spilfasen"""
+        """Update the game phase"""
         if not self.human_turn and not self.ai_thinking:
+            print("AI's turn to move.")
             self.ai_thinking = True
-            pygame.display.flip()  # Opdater skærmen med "AI tænker..." besked
-            
-            # Start AI beregning i baggrunden
-            self.ai.calculate_best_move_async(self.board, 'b', self.ai_move_callback)
+            pygame.display.flip()  # Update the screen with "AI thinking..." message
+
+            best_move_ready = threading.Event()
+
+            def ai_wrapper():
+                self.ai.calculate_best_move_async(
+                    self.board, 'b',
+                    lambda move: (self.ai_move_callback(move), best_move_ready.set())
+            )
+
+            thread = threading.Thread(target=ai_wrapper)
+            thread.start()
+  
+            if self.ai_depth == 5:
+                thread.join(timeout=15)
+
+            if not best_move_ready.is_set():
+                print("AI took too long. Using best heuristic move.")
+                self.ai_move_callback(self.ai.best_so_far)
+                best_move_ready.set()
     
     def render_game(self):
         """Tegner spilfasen"""
