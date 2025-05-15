@@ -132,6 +132,7 @@ class ChessGame:
             pause_text = self.medium_font.render("Spillet er på pause", True, (255, 255, 255))
             self.screen.blit(pause_text, (WIDTH // 2 - pause_text.get_width() // 2, HEIGHT // 2 - pause_text.get_height() // 2))
 
+
     
     def draw_coordinates(self):
         """Tegner skakkoordinater"""
@@ -437,6 +438,9 @@ class ChessGame:
         self.last_move = None
         self.ai_thinking = False
         self.state = STATE_GAME
+        #Tæller moves for begge farver (spiller)
+        self.white_move_count = 0
+        self.black_move_count = 0
     
     
     def get_valid_moves(self, row, col, piece):
@@ -546,6 +550,13 @@ class ChessGame:
                                 self.winner_text = "Sort vinder!" if self.ai.find_king(self.board, 'w') is None else "Hvid vinder!"
                                 self.state = STATE_GAME_OVER
                             else:
+                                #Tæller træk for begge farver
+                                self.white_move_count += 1
+                                if self.white_move_count >= 50:
+                                    self.game_over= True
+                                    self.winner_text = "Sort vinder (Hvid lavede 50 træk)"
+                                    self.state= STATE_GAME_OVER
+                                    return
                                 self.human_turn = False
                         elif piece and piece.color == 'w':
                             # Vælg en ny brik
@@ -631,11 +642,17 @@ class ChessGame:
 
         self.ai_thinking = False
         self.human_turn = True
-        
+        #Tæller antal træk for begge farver
         if self.ai.is_game_over(self.board):
             self.game_over = True
             self.winner_text = "Hvid vinder!" if self.ai.find_king(self.board, 'b') is None else "Sort vinder!"
             self.state = STATE_GAME_OVER
+            self.black_move_count += 1
+            if self.black_move_count >= 50:
+                self.game_over = True
+                self.winner_text = "Hvid vinder (Sort lavede 50 træk)"
+                self.state = STATE_GAME_OVER
+                return
         
         self.human_turn = True
     
