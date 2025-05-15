@@ -1,18 +1,15 @@
 import math
-import time
 from copy import deepcopy
 import threading
 import time
 from skakPieces import Piece
 
 class ChessAI:
-    def __init__(self, depth=5):
-        self.time_limit = 15 # Time limit for move calculation
+    def __init__(self, depth=4):
         self.cache = {}
         self.depth = depth
         self.transposition_table = {}  # For more efficient alpha-beta search
-        self.best_so_far = None
-
+        
         # Stats tracking for alpha-beta pruning
         self.stats = {
             'nodes_evaluated': 0,
@@ -194,46 +191,59 @@ class ChessAI:
         print(f"Transposition table hits: {self.stats['transposition_hits']}")
         print("===================================\n")
 
+    def is_time_up(self):
+        """Check if we've exceeded our time limit"""
+        if self.start_time is None:
+            return False
+        return time.time() - self.start_time > self.max_time
+
     def get_best_move(self, board, color):
-        """Calculate and return the best move for the given color"""
-        self.reset_stats()  # Reset statistics before starting search
-        self.transposition_table = {}  # Reset table for each new move
+        """Calculate and return the best move with time management"""
+        self.start_time = time.time()
+        self.nodes_searched = 0
+        
+        # Iterative deepening
+        best_move = None
+        current_depth = 1
+        
+        while current_depth <= self.depth and not self.is_time_up():
+            try:
+                move = self._get_move_at_depth(board, color, current_depth)
+                if move:
+                    best_move = move
+                current_depth += 1
+            except TimeoutError:
+                break
+                
+        return best_move
+
+    def _get_move_at_depth(self, board, color, depth):
         best_eval = -math.inf if color == 'w' else math.inf
         best_move = None
-    
         moves = self.get_all_moves(board, color)
-        if not moves:
-            return None  # No moves available
-
-        # Improved move sorting for better alpha-beta pruning
-        moves = self.sort_moves(board, moves, color)
+        moves = self.sort_moves(board, moves, color)  # Sort moves for better pruning
 
         for move in moves:
+            if self.is_time_up():
+                raise TimeoutError
+                
             new_board = deepcopy(board)
             r1, c1, r2, c2 = move
             piece = new_board[r1][c1]
             new_board[r2][c2] = piece
             new_board[r1][c1] = None
             
-            # Clear king position cache when a move is made
-            self.king_positions_cache = {}
+            eval_value = self.alphabeta(new_board, depth - 1, -math.inf, math.inf, color == 'b')
             
-            if color == 'w':
-                # White aims to maximize the evaluation
-                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, False)
-                if eval_value > best_eval:
-                    best_eval = eval_value
-                    best_move = move
-            else:
-                # Black aims to minimize the evaluation
-                eval_value = self.alphabeta(new_board, self.depth - 1, -math.inf, math.inf, True)
-                if eval_value < best_eval:
-                    best_eval = eval_value
-                    best_move = move
+            if color == 'w' and eval_value > best_eval:
+                best_eval = eval_value
+                best_move = move
+            elif color == 'b' and eval_value < best_eval:
+                best_eval = eval_value
+                best_move = move
 
-        self.print_stats()
         return best_move
-    
+
     def calculate_best_move_async(self, board, color, callback):
         """Calculate the best move asynchronously and call the callback function when ready"""
         def worker():
@@ -245,42 +255,46 @@ class ChessAI:
         thread.start()
     
     def sort_moves(self, board, moves, color):
-        """Improved move ordering with check handling"""
+        """Improved move ordering with killer move heuristic and check handling"""
         move_scores = []
-        
+        king_pos = self.find_king(board, color)
+        in_check = king_pos and self.is_in_check(board, color, king_pos)
+
         for move in moves:
             score = 0
             r1, c1, r2, c2 = move
             piece = board[r1][c1]
             target = board[r2][c2]
-            
-            score = 0
-            
-            # Prioritize captures highly (MVV-LVA: Most Valuable Victim - Least Valuable Aggressor)
+
+            # Prioritize moves that escape check
+            if in_check:
+                temp_board = deepcopy(board)
+                temp_board[r2][c2] = piece
+                temp_board[r1][c1] = None
+                new_king_pos = (r2, c2) if piece.name == 'K' else king_pos
+                if not self.is_in_check(temp_board, color, new_king_pos):
+                    score += 1000
+
+            # Killer move heuristic: prioritize captures of high-value pieces
             if target:
-                victim_value = self.piece_value(target)
-                aggressor_value = self.piece_value(piece)
-                score += 10 * victim_value - aggressor_value
-            
-            # Prioritize center control
-            score += self.CENTER_CONTROL_BONUS[r2][c2] * 0.5
-            
-            # Prioritize development in the opening
-            if self.is_opening(board) and piece.name in ['N', 'B'] and (r1 == 0 or r1 == 7):
+                score += 10 * self.piece_value(target) - self.piece_value(piece)
+
+            # Bonus for pawn promotion
+            if piece.name == 'P' and (r2 == 0 or r2 == 7):
+                score += 900
+
+            # Bonus for central control
+            if piece.name in ['N', 'B'] and 2 <= r2 <= 5 and 2 <= c2 <= 5:
                 score += 50
-                
-            # Prioritize moves that give check
-            new_board, _ = self.make_move(deepcopy(board), move)
-            opponent_color = 'b' if color == 'w' else 'w'
-            opponent_king_pos = self.find_king(new_board, opponent_color)
-            if opponent_king_pos and self.is_in_check(new_board, opponent_color, opponent_king_pos):
-                score += 30
-                
+
+            # Log the move and its score
+            print(f"Move: {move}, Score: {score}")
             move_scores.append((move, score))
-        
-        # Sort based on score (descending for white, ascending for black)
-        return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
-        
+
+        # Sort moves by score in descending order for white, ascending for black
+        sorted_moves = [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color == 'w'))]
+        print(f"Sorted Moves: {sorted_moves}")
+        return sorted_moves
     def is_opening(self, board):
         """Check if we're in the opening phase of the game"""
         piece_count = sum(1 for row in board for piece in row if piece is not None)
@@ -403,24 +417,6 @@ class ChessAI:
         white_piece_count = 0
         black_piece_count = 0
         
-        # Count material for both sides
-        for row in board:
-            for piece in row:
-                if piece:
-                    if piece.color == 'w':
-                        white_material += self.piece_value(piece)
-                    else:
-                        black_material += self.piece_value(piece)
-
-        # Material balance
-        value = white_material - black_material
-
-        # Add bonus for reducing opponent's material
-        value += (white_material - black_material) * 0.1  # Adjust weight as needed
-
-
-
-
         white_material = 0
         black_material = 0
         
@@ -448,17 +444,7 @@ class ChessAI:
         
         # Material balance
         value = white_material - black_material
-        # Penalize losing valuable pieces
-        for r, row in enumerate(board):
-            for c, p in enumerate(row):
-                if p and p.color == 'b':  # AI's pieces
-                    possible_moves = p.get_possible_moves(board, r, c)
-                    for move in possible_moves:
-                        target = board[move[0]][move[1]]
-                        if target and target.color == 'w':  # Opponent's piece
-                            trade_penalty = self.piece_value(target, game_phase) - self.piece_value(p, game_phase)
-                            if trade_penalty > 0:  # Unfavorable trade
-                                value -= trade_penalty
+        
         # Board position value for all pieces
         white_position_value = 0
         black_position_value = 0
