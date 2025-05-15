@@ -201,7 +201,9 @@ class ChessAI:
         """Calculate and return the best move with time management"""
         self.start_time = time.time()
         self.nodes_searched = 0
+
         self.reset_stats()
+
         
         # Iterative deepening
         best_move = None
@@ -215,8 +217,10 @@ class ChessAI:
                 current_depth += 1
             except TimeoutError:
                 break
+
             
         self.print_stats()
+
                 
         return best_move
 
