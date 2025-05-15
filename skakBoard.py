@@ -37,7 +37,7 @@ class ChessGame:
         self.load_images()
         self.move_log = []    # Historik over træk
         self.is_paused = False  # For at kontrollere om spillet er sat på pause
-
+        self.player_color = None  
 
         
         # Standardsværhedsgrader
@@ -202,17 +202,17 @@ class ChessGame:
     def show_thinking_indicator(self):
         """Viser en indikator når AI'en tænker"""
         if self.ai_thinking:
-            thinking_text = self.small_font.render("AI tænker...", True, (0, 0, 0))
-            text_bg = pygame.Rect(WIDTH // 2 - 60, 10, 120, 30)
+            thinking_text = self.small_font.render("Let him cook", True, (0, 0, 0))
+            # Increase the box width from 140 to 200 and height stays at 40
+            text_bg = pygame.Rect(WIDTH // 2 - 100, 10, 200, 40)  # Changed width and x-position
             pygame.draw.rect(self.screen, (200, 200, 200), text_bg)
             pygame.draw.rect(self.screen, (0, 0, 0), text_bg, 2)
-            self.screen.blit(thinking_text, (WIDTH // 2 - 50, 15))
+            # Center the text in the larger box
+            text_x = WIDTH // 2 - thinking_text.get_width() // 2
+            self.screen.blit(thinking_text, (text_x, 15))
             pygame.display.update(text_bg)
     
     def draw_slider(self, x, y, width, value, min_val, max_val, label):
-        """Tegner en slider til indstillinger"""
-        pygame.draw.rect(self.screen, (200, 200, 200), (x, y, width, 10))
-        
         # Beregn position for slideren
         pos = x + ((value - min_val) / (max_val - min_val)) * width
         
@@ -298,29 +298,30 @@ class ChessGame:
         }
         self.state = STATE_MENU
     
-    def show_start_menu(self):
-        """Viser startmenuen"""    
-        title = self.large_font.render("Velkommen til Skak!", True, (0, 0, 0))
+    def show_difficulty_menu(self):
+        """Viser sværhedsgrad menu efter farvevalg"""
+        title = self.large_font.render("Vælg Sværhedsgrad", True, (0, 0, 0))
         title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
 
         difficulty_options = [
             ("Let", self.difficulty_settings["let"]),
             ("Mellem", self.difficulty_settings["mellem"]),
             ("Svær", self.difficulty_settings["svær"]),
-            ("Tilpas indstillinger", 0)  # Specialværdi for at åbne indstillinger igen
+            ("Tilpas indstillinger", 0)
         ]
         
         buttons = []
         
         for i, (level, depth) in enumerate(difficulty_options):
             btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 + i * 70, 300, 60)
-            if i < 3:  # For sværhedsgraderne
+            if i < 3:
                 text = self.medium_font.render(f"{level} (Dybde {depth})", True, (255, 255, 255))
-            else:  # For "Tilpas indstillinger" knappen
+            else:
                 text = self.medium_font.render(level, True, (255, 255, 255))
             buttons.append((btn, text, depth))
 
-        while self.state == STATE_MENU:
+        running = True
+        while running:
             self.screen.fill((200, 200, 200))
             self.screen.blit(title, title_rect)
             
@@ -337,12 +338,51 @@ class ChessGame:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     for i, (btn, _, depth) in enumerate(buttons):
                         if btn.collidepoint(event.pos):
-                            if depth == 0:  # Hvis "Tilpas indstillinger" er valgt
+                            if depth == 0:
                                 self.state = STATE_SETTINGS
                                 return
                             self.ai_depth = depth
                             self.start_new_game()
                             return
+    
+    def show_start_menu(self):
+        """Viser startmenuen med farvevalg"""    
+        title = self.large_font.render("Velkommen til Skak!", True, (0, 0, 0))
+        title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 150))
+
+        # Color selection buttons
+        white_btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 - 50, 300, 60)
+        black_btn = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 + 50, 300, 60)
+        
+        white_text = self.medium_font.render("Spil som Hvid", True, (255, 255, 255))
+        black_text = self.medium_font.render("Spil som Sort", True, (255, 255, 255))
+
+        while self.state == STATE_MENU:
+            self.screen.fill((200, 200, 200))
+            self.screen.blit(title, title_rect)
+            
+            # Draw color selection buttons
+            pygame.draw.rect(self.screen, (0, 128, 0), white_btn)
+            pygame.draw.rect(self.screen, (0, 128, 0), black_btn)
+            
+            self.screen.blit(white_text, (white_btn.x + 65, white_btn.y + 15))
+            self.screen.blit(black_text, (black_btn.x + 65, black_btn.y + 15))
+            
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if white_btn.collidepoint(event.pos):
+                        self.player_color = 'w'
+                        self.show_difficulty_menu()
+                        return
+                    elif black_btn.collidepoint(event.pos):
+                        self.player_color = 'b'
+                        self.show_difficulty_menu()
+                        return
     
     def show_game_over_menu(self):
         """Viser spil slut menuen"""
@@ -391,7 +431,7 @@ class ChessGame:
         self.ai = ChessAI(depth=self.ai_depth)
         self.selected_piece = None
         self.possible_moves = []
-        self.human_turn = True
+        self.human_turn = self.player_color == 'w'  # Set initial turn based on color
         self.game_over = False
         self.winner_text = ""
         self.last_move = None
@@ -403,14 +443,23 @@ class ChessGame:
         """Finder lovlige træk for en brik, der ikke efterlader kongen i skak"""
         all_moves = piece.get_possible_moves(self.board, row, col)
         valid_moves = []
+        
         for move in all_moves:
             # Test hvert træk for at se, om det efterlader kongen i skak
             temp_board = deepcopy(self.board)
             temp_board[move[0]][move[1]] = piece
             temp_board[row][col] = None
-            king_pos = self.ai.find_king(temp_board, 'w')
-            if king_pos and not self.ai.is_in_check(temp_board, 'w'):
+            
+            # Force refresh king position for the temp board
+            king_pos = None
+            if piece.name == 'K':
+                king_pos = (move[0], move[1])  # Use new king position directly
+            else:
+                king_pos = self.ai.find_king(temp_board, piece.color)  # This will now do a fresh search
+                
+            if king_pos and not self.ai.is_in_check(temp_board, piece.color, king_pos):
                 valid_moves.append(move)
+        
         return valid_moves
     
     def handle_game_event(self, event):
