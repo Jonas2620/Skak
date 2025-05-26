@@ -8,3 +8,5 @@
 # Når spillet er pauset kan du vilkårligt rykke rundt på brikkerne på boardet
 
 # Programmet er en .exe fil i dist mappen (dist -> skakspil)
+
+# Programmet bliver både langsommere, og den beregner nodes, cutoffs osv. anderledes, så resultaterne er ikke de samme, som hvis man kørte det direkte i vs.
