@@ -1,62 +1,62 @@
 from typing import List, Tuple, Optional
 
+# Base klasse for alle skakbrikker.
 class Piece:
-    """Base klasse for alle skakbrikker."""
     
     def __init__(self, color: str, name: str):
-        """
-        Initialiserer en skakbrik.
-        
-        Args:
-            color: Farven på brikken ('w' for hvid, 'b' for sort)
-            name: Navnet på brikken ('P', 'R', 'N', 'B', 'Q', 'K')
-        """
+        #
+        # Initialiserer en skakbrik.
+        #
+        # Args:
+        #     color: Farven på brikken ('w' for hvid, 'b' for sort)
+        #     name: Navnet på brikken ('P', 'R', 'N', 'B', 'Q', 'K')
+        #
         self.color = color  # 'w' eller 'b'
         self.name = name    # f.eks. 'P', 'R', 'N', 'B', 'Q', 'K'
         self.image = f"{color}{name}.png"
         self.has_moved = False  # Tracker om brikken har bevæget sig (til rochade og bondens dobbelttræk)
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for brikken.
-        
-        Args:
-            board: Skakbrættet repræsenteret som en 2D liste
-            row: Nuværende række position
-            col: Nuværende kolonne position
-            include_attacks: Om kun angrebsfelter skal inkluderes (bruges til skak-tjek)
-            
-        Returns:
-            Liste af koordinater (række, kolonne) der kan flyttes til
-        """
+        #
+        # Beregner mulige træk for brikken.
+        #
+        # Args:
+        #     board: Skakbrættet repræsenteret som en 2D liste
+        #     row: Nuværende række position
+        #     col: Nuværende kolonne position
+        #     include_attacks: Om kun angrebsfelter skal inkluderes (bruges til skak-tjek)
+        #
+        # Returns:
+        #     Liste af koordinater (række, kolonne) der kan flyttes til
+        #
         return []
 
     def __str__(self) -> str:
-        """String repræsentation af brikken."""
+        # String repræsentation af brikken.
         return f"{self.color}{self.name}"
     
     def is_valid_position(self, row: int, col: int) -> bool:
-        """Tjekker om en position er inden for brættet."""
+        # Tjekker om en position er inden for brættet.
         return 0 <= row < 8 and 0 <= col < 8
 
 
+# Klasse der repræsenterer en bonde.
 class Pawn(Piece):
-    """Klasse der repræsenterer en bonde."""
     
     def __init__(self, color: str):
-        """Initialiserer en bonde."""
+        # Initialiserer en bonde.
         super().__init__(color, "P")
         self.en_passant_vulnerable = False  # Bruges til at spore om bonden kan slås med en-passant
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for en bonde.
-        
-        Inkluderer:
-        - Fremad bevægelse (et eller to felter fra startposition)
-        - Diagonale angreb
-        - En-passant angreb
-        """
+        #
+        # Beregner mulige træk for en bonde.
+        #
+        # Inkluderer:
+        # - Fremad bevægelse (et eller to felter fra startposition)
+        # - Diagonale angreb
+        # - En-passant angreb
+        #
         moves = []
         direction = -1 if self.color == 'w' else 1  # Bevægelsesretning for "w" og "b"
 
@@ -99,19 +99,19 @@ class Pawn(Piece):
         return moves
 
 
+# Klasse der repræsenterer et tårn.
 class Rook(Piece):
-    """Klasse der repræsenterer et tårn."""
     
     def __init__(self, color: str):
-        """Initialiserer et tårn."""
+        # Initialiserer et tårn.
         super().__init__(color, "R")
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for et tårn.
-        
-        Bevæger sig vandret og lodret så langt som muligt indtil der mødes en brik eller brættets kant.
-        """
+        #
+        # Beregner mulige træk for et tårn.
+        #
+        # Bevæger sig vandret og lodret så langt som muligt indtil der mødes en brik eller brættets kant.
+        #
         moves = []
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Op, Ned, Venstre, Højre
 
@@ -135,19 +135,19 @@ class Rook(Piece):
         return moves
 
 
+# Klasse der repræsenterer en springer.
 class Knight(Piece):
-    """Klasse der repræsenterer en springer."""
     
     def __init__(self, color: str):
-        """Initialiserer en springer."""
+        # Initialiserer en springer.
         super().__init__(color, "N")
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for en springer.
-        
-        Bevæger sig i L-form (2 felter i én retning og 1 felt i den anden).
-        """
+        #
+        # Beregner mulige træk for en springer.
+        #
+        # Bevæger sig i L-form (2 felter i én retning og 1 felt i den anden).
+        #
         moves = []
         knight_moves = [(-2, -1), (-1, -2), (1, -2), (2, -1), (2, 1), (1, 2), (-1, 2), (-2, 1)]
 
@@ -166,19 +166,19 @@ class Knight(Piece):
         return moves
 
 
+# Klasse der repræsenterer en løber.
 class Bishop(Piece):
-    """Klasse der repræsenterer en løber."""
     
     def __init__(self, color: str):
-        """Initialiserer en løber."""
+        # Initialiserer en løber.
         super().__init__(color, "B")
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for en løber.
-        
-        Bevæger sig diagonalt så langt som muligt indtil der mødes en brik eller brættets kant.
-        """
+        #
+        # Beregner mulige træk for en løber.
+        #
+        # Bevæger sig diagonalt så langt som muligt indtil der mødes en brik eller brættets kant.
+        #
         moves = []
         directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)]  # Diagonale bevægelser
 
@@ -202,40 +202,40 @@ class Bishop(Piece):
         return moves
 
 
+# Klasse der repræsenterer en dronning.
 class Queen(Piece):
-    """Klasse der repræsenterer en dronning."""
     
     def __init__(self, color: str):
-        """Initialiserer en dronning."""
+        # Initialiserer en dronning.
         super().__init__(color, "Q")
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for en dronning.
-        
-        Kombinerer tårnets og løberens bevægelser.
-        """
+        #
+        # Beregner mulige træk for en dronning.
+        #
+        # Kombinerer tårnets og løberens bevægelser.
+        #
         # Dronningen bevæger sig som både et tårn og en løber kombineret
         rook_moves = Rook(self.color).get_possible_moves(board, row, col, include_attacks)
         bishop_moves = Bishop(self.color).get_possible_moves(board, row, col, include_attacks)
         return rook_moves + bishop_moves
 
 
+# Klasse der repræsenterer en konge.
 class King(Piece):
-    """Klasse der repræsenterer en konge."""
     
     def __init__(self, color: str):
-        """Initialiserer en konge."""
+        # Initialiserer en konge.
         super().__init__(color, "K")
 
     def get_possible_moves(self, board: list, row: int, col: int, include_attacks: bool = False) -> List[Tuple[int, int]]:
-        """
-        Beregner mulige træk for en konge.
-        
-        Inkluderer:
-        - Normale træk (1 felt i alle retninger)
-        - Rokade (hvis betingelserne er opfyldt)
-        """
+        #
+        # Beregner mulige træk for en konge.
+        #
+        # Inkluderer:
+        # - Normale træk (1 felt i alle retninger)
+        # - Rokade (hvis betingelserne er opfyldt)
+        #
         # Hvis vi kun tjekker angreb, returner normale angrebsfelter
         if include_attacks:
             moves = []
@@ -279,7 +279,7 @@ class King(Piece):
         return moves
     
     def _check_kingside_castling(self, board: list, row: int, col: int) -> bool:
-        """Tjekker om kingside (kort) rokade er mulig."""
+        # Tjekker om kingside (kort) rokade er mulig.
         # Kongen må ikke have flyttet sig
         if self.has_moved:
             return False
@@ -301,7 +301,7 @@ class King(Piece):
         return self._verify_castling_path(board, row, col, col + 2)
     
     def _check_queenside_castling(self, board: list, row: int, col: int) -> bool:
-        """Tjekker om queenside (lang) rokade er mulig."""
+        # Tjekker om queenside (lang) rokade er mulig.
         # Kongen må ikke have flyttet sig
         if self.has_moved:
             return False
@@ -323,15 +323,15 @@ class King(Piece):
         return self._verify_castling_path(board, row, col, col - 2)
     
     def _verify_castling_path(self, board: list, row: int, start_col: int, end_col: int) -> bool:
-        """
-        Verificerer at ingen felter mellem start og slut kolonner er truet
-        
-        :param board: Hele skakbrættet
-        :param row: Kongens række
-        :param start_col: Startkolonne for kongen
-        :param end_col: Slutkolonne for kongen
-        :return: True hvis vejen er sikker, False ellers
-        """
+        #
+        # Verificerer at ingen felter mellem start og slut kolonner er truet
+        #
+        # :param board: Hele skakbrættet
+        # :param row: Kongens række
+        # :param start_col: Startkolonne for kongen
+        # :param end_col: Slutkolonne for kongen
+        # :return: True hvis vejen er sikker, False ellers
+        #
         # Bestem retningen for rokaden (positiv eller negativ)
         step = 1 if end_col > start_col else -1
         
@@ -344,14 +344,14 @@ class King(Piece):
         return True
     
     def _is_square_under_attack(self, board: list, target_row: int, target_col: int) -> bool:
-        """
-        Tjekker om et felt er truet af modstanderbrikker
-        
-        :param board: Hele skakbrættet
-        :param target_row: Række for det felt der tjekkes
-        :param target_col: Kolonne for det felt der tjekkes
-        :return: True hvis feltet er truet, False ellers
-        """
+        #
+        # Tjekker om et felt er truet af modstanderbrikker
+        #
+        # :param board: Hele skakbrættet
+        # :param target_row: Række for det felt der tjekkes
+        # :param target_col: Kolonne for det felt der tjekkes
+        # :return: True hvis feltet er truet, False ellers
+        #
         # Gennemgå hele brættet
         for row in range(8):
             for col in range(8):
@@ -369,18 +369,18 @@ class King(Piece):
 
     @staticmethod
     def perform_castling(board: list, king_row: int, king_col: int, dest_col: int) -> list:
-        """
-        Udfører rokaden ved at bytte plads mellem kongen og tårnet.
-        
-        Args:
-            board: Skakbrættet
-            king_row: Kongens nuværende række
-            king_col: Kongens nuværende kolonne
-            dest_col: Kongens destinationskolonne
-        
-        Returns:
-            Opdateret skakbræt efter rokaden
-        """
+        #
+        # Udfører rokaden ved at bytte plads mellem kongen og tårnet.
+        #
+        # Args:
+        #     board: Skakbrættet
+        #     king_row: Kongens nuværende række
+        #     king_col: Kongens nuværende kolonne
+        #     dest_col: Kongens destinationskolonne
+        #
+        # Returns:
+        #     Opdateret skakbræt efter rokaden
+        #
         # Bestem tårnets nuværende kolonne baseret på rokaderetningen
         rook_col = 7 if dest_col > king_col else 0
         

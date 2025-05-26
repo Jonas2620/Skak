@@ -92,7 +92,7 @@ class ChessGame:
      self.last_move = None
     
     def load_images(self):
-        """Indlæser brikkebilleder"""
+        # Indlæser brikkebilleder
         pieces = ['wP', 'wR', 'wN', 'wB', 'wQ', 'wK', 'bP', 'bR', 'bN', 'bB', 'bQ', 'bK']
         for piece in pieces:
             path = os.path.join("assets", f"{piece}.png")
@@ -104,7 +104,7 @@ class ChessGame:
                 sys.exit(1)
     
     def initialize_board(self):
-        """Initialiserer skakbrættet med brikker"""
+        # Initialiserer skakbrættet med brikker
         return [
             [Rook('b'), Knight('b'), Bishop('b'), Queen('b'), King('b'), Bishop('b'), Knight('b'), Rook('b')],
             [Pawn('b') for _ in range(8)],
@@ -117,7 +117,7 @@ class ChessGame:
         ]
     
     def draw_board(self):
-        """Tegner skakbrættet"""
+        # Tegner skakbrættet
         for row in range(ROWS):
             for col in range(COLS):
                 color = LIGHT if (row + col) % 2 == 0 else DARK
@@ -135,7 +135,7 @@ class ChessGame:
 
     
     def draw_coordinates(self):
-        """Tegner skakkoordinater"""
+        # Tegner skakkoordinater
         for col in range(COLS):
             label = self.tiny_font.render(chr(97 + col), True, (0, 0, 0))
             self.screen.blit(label, (col * SQUARE_SIZE + SQUARE_SIZE - 15, HEIGHT - 15))
@@ -145,7 +145,7 @@ class ChessGame:
             self.screen.blit(label, (5, row * SQUARE_SIZE + 5))
     
     def draw_pieces(self):
-        """Tegner skakbrikker"""
+        # Tegner skakbrikker
         for row in range(8):
             for col in range(8):
                 piece = self.board[row][col]
@@ -160,7 +160,7 @@ class ChessGame:
             pygame.draw.rect(self.screen, BLUE, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 5)
     
     def draw_possible_moves(self):
-        """Tegner mulige træk"""
+        # Tegner mulige træk
         for row, col in self.possible_moves:
             # Tjek om feltet er tomt eller har en modstander
             if self.board[row][col] is None:
@@ -171,7 +171,7 @@ class ChessGame:
                 pygame.draw.rect(self.screen, RED, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
     
     def highlight_selected(self):
-        """Fremhæver den valgte brik"""
+        # Fremhæver den valgte brik
         if self.selected_piece:
             row, col, _ = self.selected_piece
             s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
@@ -179,20 +179,20 @@ class ChessGame:
             self.screen.blit(s, (col * SQUARE_SIZE, row * SQUARE_SIZE))
     
     def highlight_last_move(self):
-        """Fremhæver det sidste træk"""
+        # Fremhæver det sidste træk
         if self.last_move:
             r1, c1, r2, c2 = self.last_move
             pygame.draw.rect(self.screen, BLUE, (c1 * SQUARE_SIZE, r1 * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
             pygame.draw.rect(self.screen, BLUE, (c2 * SQUARE_SIZE, r2 * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
     
     def highlight_check(self, king_pos):
-        """Fremhæver en konge, der er i skak"""
+        # Fremhæver en konge, der er i skak
         if king_pos:
             row, col = king_pos
             pygame.draw.rect(self.screen, RED, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 3)
     
     def get_square_under_mouse(self):
-        """Returnerer koordinaterne for feltet under musen"""
+        # Returnerer koordinaterne for feltet under musen
         mouse_x, mouse_y = pygame.mouse.get_pos()
         row = mouse_y // SQUARE_SIZE
         col = mouse_x // SQUARE_SIZE
@@ -201,7 +201,7 @@ class ChessGame:
         return None
     
     def show_thinking_indicator(self):
-        """Viser en indikator når AI'en tænker"""
+        # Viser en indikator når AI'en tænker
         if self.ai_thinking:
             thinking_text = self.small_font.render("Let him cook", True, (0, 0, 0))
             # Increase the box width from 140 to 200 and height stays at 40
@@ -225,7 +225,7 @@ class ChessGame:
         self.screen.blit(value_text, (x, y - 30))
     
     def handle_slider(self, x, y, width, value, min_val, max_val, mouse_pos, mouse_pressed):
-        """Håndterer interaktion med en slider"""
+        # Håndterer interaktion med en slider
         if mouse_pressed and y - 10 <= mouse_pos[1] <= y + 20:
             if x <= mouse_pos[0] <= x + width:
                 # Beregn ny værdi baseret på museposition
@@ -235,7 +235,7 @@ class ChessGame:
         return value
     
     def show_difficulty_settings(self):
-        """Viser indstillinger for sværhedsgrad"""
+        # Viser indstillinger for sværhedsgrad
         title = self.large_font.render("Sværhedsgrad Indstillinger", True, (0, 0, 0))
         title_rect = title.get_rect(center=(WIDTH // 2, 80))
         
@@ -300,7 +300,7 @@ class ChessGame:
         self.state = STATE_MENU
     
     def show_difficulty_menu(self):
-        """Viser sværhedsgrad menu efter farvevalg"""
+        # Viser sværhedsgrad menu efter farvevalg
         title = self.large_font.render("Vælg Sværhedsgrad", True, (0, 0, 0))
         title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
 
@@ -347,7 +347,7 @@ class ChessGame:
                             return
     
     def show_start_menu(self):
-        """Viser startmenuen med farvevalg"""    
+        # Viser startmenuen med farvevalg    
         title = self.large_font.render("Velkommen til Skak!", True, (0, 0, 0))
         title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 150))
 
@@ -386,7 +386,7 @@ class ChessGame:
                         return
     
     def show_game_over_menu(self):
-        """Viser spil slut menuen"""
+        # Viser spil slut menuen
         text = self.large_font.render(self.winner_text, True, (200, 0, 0))
         text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
 
@@ -427,7 +427,7 @@ class ChessGame:
                         sys.exit()
     
     def start_new_game(self):
-        """Starter et nyt spil"""
+        # Starter et nyt spil
         self.board = self.initialize_board()
         self.ai = ChessAI(depth=self.ai_depth)
         self.selected_piece = None
@@ -444,7 +444,7 @@ class ChessGame:
     
     
     def get_valid_moves(self, row, col, piece):
-        """Finder lovlige træk for en brik, der ikke efterlader kongen i skak"""
+        # Finder lovlige træk for en brik, der ikke efterlader kongen i skak
         all_moves = piece.get_possible_moves(self.board, row, col)
         valid_moves = []
         
@@ -467,7 +467,7 @@ class ChessGame:
         return valid_moves
     
     def handle_game_event(self, event):
-        """Håndterer spilbegivenheder under selve skakspillet med understøttelse af rokade"""
+        # Håndterer spilbegivenheder under selve skakspillet med understøttelse af rokade
         if event.type == pygame.MOUSEBUTTONDOWN:
             # Hvis spillet er på pause, tillad at flytte brikker rundt
             if self.is_paused:
@@ -577,16 +577,16 @@ class ChessGame:
 
     
     def _verify_castling_path(self, board, row, start_col, end_col, color):
-        """
-        Verificerer at ingen felter mellem start og slut kolonner er truet under rokade
-        
-        :param board: Hele skakbrættet
-        :param row: Kongens række
-        :param start_col: Startkolonne for kongen
-        :param end_col: Slutkolonne for kongen
-        :param color: Farven på kongen der rokerer
-        :return: True hvis vejen er sikker, False ellers
-        """
+        #
+        # Verificerer at ingen felter mellem start og slut kolonner er truet under rokade
+        #
+        # :param board: Hele skakbrættet
+        # :param row: Kongens række
+        # :param start_col: Startkolonne for kongen
+        # :param end_col: Slutkolonne for kongen
+        # :param color: Farven på kongen der rokerer
+        # :return: True hvis vejen er sikker, False ellers
+        #
         # Bestem retningen for rokaden (positiv eller negativ)
         step = 1 if end_col > start_col else -1
         
@@ -599,15 +599,15 @@ class ChessGame:
         return True
     
     def _is_square_under_attack(self, board, target_row, target_col, defending_color):
-        """
-        Tjekker om et felt er truet af modstanderbrikker
-        
-        :param board: Hele skakbrættet
-        :param target_row: Række for det felt der tjekkes
-        :param target_col: Kolonne for det felt der tjekkes
-        :param defending_color: Farven på den forsvarende side
-        :return: True hvis feltet er truet, False ellers
-        """
+        #
+        # Tjekker om et felt er truet af modstanderbrikker
+        #
+        # :param board: Hele skakbrættet
+        # :param target_row: Række for det felt der tjekkes
+        # :param target_col: Kolonne for det felt der tjekkes
+        # :param defending_color: Farven på den forsvarende side
+        # :return: True hvis feltet er truet, False ellers
+        #
         # Gennemgå hele brættet
         for row in range(8):
             for col in range(8):
@@ -624,7 +624,7 @@ class ChessGame:
         return False
     
     def ai_move_callback(self, best_move):
-        """Callback funktion til håndtering af AI træk"""
+        # Callback funktion til håndtering af AI træk
         if best_move:
          r1, c1, r2, c2 = best_move
          moved = self.board[r1][c1]
@@ -657,7 +657,7 @@ class ChessGame:
         self.human_turn = True
     
     def update_game(self):
-        """Opdaterer spilfasen"""
+        # Opdaterer spilfasen
         if not self.human_turn and not self.ai_thinking:
             self.ai_thinking = True
             pygame.display.flip()  # Opdater skærmen med "AI tænker..." besked
@@ -666,7 +666,7 @@ class ChessGame:
             self.ai.calculate_best_move_async(self.board, 'b', self.ai_move_callback)
     
     def render_game(self):
-        """Tegner spilfasen"""
+        # Tegner spilfasen
         self.draw_board()
         self.draw_coordinates()
         self.highlight_last_move()
@@ -707,7 +707,7 @@ class ChessGame:
          )
     
     def run(self):
-        """Kører hovedspiløjfen"""
+        # Kører hovedspiløjfen
         while True:
             if self.state == STATE_MENU:
                 self.show_start_menu()
