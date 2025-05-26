@@ -181,7 +181,7 @@ class ChessAI:
         self.null_move_reduction = 2
 
     def reset_stats(self):
-        """Reset the alpha-beta pruning statistics"""
+        #Reset the alpha-beta pruning statistics
         self.stats = {
             'nodes_evaluated': 0,
             'alpha_cutoffs': 0,
@@ -195,7 +195,7 @@ class ChessAI:
         self.history_table = {}
         
     def print_stats(self):
-        """Print comprehensive statistics"""
+        #Print comprehensive statistics
         print("\n=== Enhanced Alpha-Beta Statistics ===")
         print(f"Total nodes evaluated: {self.stats['nodes_evaluated']}")
         print(f"Alpha cutoffs: {self.stats['alpha_cutoffs']}")
@@ -214,13 +214,13 @@ class ChessAI:
         print("=====================================\n")
 
     def is_time_up(self):
-        """Check if we've exceeded our time limit"""
+        #Check if we've exceeded our time limit
         if self.start_time is None:
             return False
         return time.time() - self.start_time > self.max_time
 
     def get_best_move(self, board, color):
-        """Calculate and return the best move with time management"""
+        #Calculate and return the best move with time management
         self.start_time = time.time()
         self.nodes_searched = 0
 
@@ -263,7 +263,7 @@ class ChessAI:
         return best_move
     
     def search_with_aspiration(self, board, color, depth, alpha, beta):
-        """Search with aspiration window"""
+        #Search with aspiration window
         moves = self.get_all_moves(board, color)
         if not moves:
             return 0, None
@@ -295,7 +295,7 @@ class ChessAI:
         return best_score, best_move
 
     def alphabeta_enhanced(self, board, depth, alpha, beta, maximizing, original_depth, null_move_allowed=True):
-        """Enhanced alpha-beta with multiple pruning techniques"""
+        #Enhanced alpha-beta with multiple pruning techniques
         self.stats['nodes_evaluated'] += 1
         
         # Check time limit
@@ -428,7 +428,7 @@ class ChessAI:
         return best_score
     
     def quiescence_search(self, board, alpha, beta, maximizing, depth):
-        """Quiescence search to avoid horizon effect"""
+        #Quiescence search to avoid horizon effect
         if depth == 0:
             return self.evaluate_board(board)
             
@@ -464,7 +464,7 @@ class ChessAI:
         return alpha if maximizing else beta
     
     def get_tactical_moves(self, board, color):
-        """Get only captures and check-giving moves for quiescence search"""
+        #Get only captures and check-giving moves for quiescence search
         moves = []
         for r in range(8):
             for c in range(8):
@@ -481,7 +481,7 @@ class ChessAI:
         return moves
 
     def sort_moves_advanced(self, board, moves, color, depth):
-        """Advanced move ordering with multiple heuristics"""
+        #Advanced move ordering with multiple heuristics
         if not moves:
             return moves
             
@@ -545,7 +545,7 @@ class ChessAI:
         return [move for move, _ in move_scores]
 
     def make_move_fast(self, board, move):
-        """Fast move making without deep copy for performance"""
+        #Fast move making without deep copy for performance
         r1, c1, r2, c2 = move
         new_board = [row[:] for row in board]  # Shallow copy is faster than deepcopy
         piece = new_board[r1][c1]
@@ -554,12 +554,12 @@ class ChessAI:
         return new_board
 
     def is_capture(self, board, move):
-        """Check if move is a capture"""
+        #Check if move is a capture
         r1, c1, r2, c2 = move
         return board[r2][c2] is not None
 
     def is_check_giving_move(self, board, move):
-        """Check if move gives check (simplified)"""
+        #Check if move gives check (simplified)
         r1, c1, r2, c2 = move
         piece = board[r1][c1]
         if not piece:
@@ -577,19 +577,19 @@ class ChessAI:
         return self.is_in_check(temp_board, opponent_color, opponent_king_pos)
 
     def is_development_move(self, r1, c1, r2, c2, color):
-        """Check if move develops a piece"""
+        #Check if move develops a piece
         if color == 'w':
             return r1 == 7 and r2 < 7  # Moving from back rank
         else:
             return r1 == 0 and r2 > 0  # Moving from back rank
 
     def move_to_key(self, move):
-        """Convert move to hashable key"""
+        #Convert move to hashable key
         return tuple(move)
 
     # Keep all the original evaluation functions
     def evaluate_board(self, board):
-        """Cached board evaluation (same as original but with fast lookup)"""
+        #Cached board evaluation (same as original but with fast lookup)
         board_key = self.board_to_key(board)
         if board_key in self.position_cache:
             self.cache_hits += 1
@@ -601,7 +601,7 @@ class ChessAI:
         return value
 
     def _evaluate_board_internal(self, board):
-        """Internal evaluation function (same as original)"""
+        #Internal evaluation function (same as original)
         value = 0
         white_piece_count = 0
         black_piece_count = 0
@@ -667,7 +667,7 @@ class ChessAI:
         return best_move
 
     def calculate_best_move_async(self, board, color, callback):
-        """Calculate the best move asynchronously and call the callback function when ready"""
+        #Calculate the best move asynchronously and call the callback function when ready
         def worker():
             best_move = self.get_best_move(board, color)
             callback(best_move)
@@ -677,7 +677,7 @@ class ChessAI:
         thread.start()
     
     def sort_moves(self, board, moves, color):
-        """Improved move ordering with check handling"""
+        #Improved move ordering with check handling
         move_scores = []
         king_pos = self.find_king(board, color)
         in_check = king_pos and self.is_in_check(board, color, king_pos)
@@ -712,12 +712,12 @@ class ChessAI:
         return [move for move, _ in sorted(move_scores, key=lambda x: x[1], reverse=(color=='w'))]
 
     def is_opening(self, board):
-        """Check if we're in the opening phase of the game"""
+        #Check if we're in the opening phase of the game
         piece_count = sum(1 for row in board for piece in row if piece is not None)
         return piece_count >= 28  # More than 28 pieces on the board
 
     def alphabeta(self, board, depth, alpha, beta, maximizing):
-        """Enhanced alpha-beta pruning with better check handling"""
+        #Enhanced alpha-beta pruning with better check handling
         self.stats['nodes_evaluated'] += 1
         board_key = self.board_to_key(board)
 
@@ -794,7 +794,7 @@ class ChessAI:
             return min_eval
 
     def make_move(self, board, move, return_undo=False):
-        """Make a move on the board and return the new board state"""
+        #Make a move on the board and return the new board state
         r1, c1, r2, c2 = move
         piece = board[r1][c1]
         target = board[r2][c2]
@@ -812,18 +812,18 @@ class ChessAI:
         return board, undo_data
 
     def undo_move(self, board, undo_data):
-        """Undo a move on the board"""
+        #Undo a move on the board
         r1, c1, r2, c2, piece, target = undo_data
         board[r1][c1] = piece
         board[r2][c2] = target
         self.king_positions_cache = {}  # Clear cache
 
     def board_to_key(self, board):
-        """Convert board to a hashable key for the transposition table"""
+        #Convert board to a hashable key for the transposition table
         return tuple(tuple((p.name, p.color) if p else None for p in row) for row in board)
 
     def evaluate_board(self, board):
-        """Cached board evaluation"""
+        #Cached board evaluation
         board_key = self.board_to_key(board)
         if board_key in self.position_cache:
             self.cache_hits += 1
@@ -942,7 +942,7 @@ class ChessAI:
         return value
 
     def evaluate_endgame(self, board, white_king_pos, black_king_pos):
-        """Evaluate endgame-specific factors"""
+        #Evaluate endgame-specific factors
         value = 0
         
         # If we have kings
@@ -973,7 +973,7 @@ class ChessAI:
         return value
         
     def count_material(self, board, color):
-        """Count total material value for a given color"""
+        #Count total material value for a given color
         total = 0
         for row in board:
             for piece in row:
@@ -982,7 +982,7 @@ class ChessAI:
         return total
 
     def determine_game_phase(self, total_pieces):
-        """Determine the current game phase based on number of pieces"""
+        #Determine the current game phase based on number of pieces
         if total_pieces >= 28:  # 32 - 4 pieces
             return 'opening'
         elif total_pieces >= 15:
@@ -991,7 +991,7 @@ class ChessAI:
             return 'endgame'
     
     def evaluate_pawn_structure(self, board, row, col, color, pawns_by_file):
-        """Evaluate pawn structure for a given pawn"""
+        #Evaluate pawn structure for a given pawn
         value = 0
         
         # Doubled pawns (penalty)
@@ -1044,7 +1044,7 @@ class ChessAI:
         return value
           
     def evaluate_piece_coordination(self, board):
-        """Evaluate how well pieces coordinate with each other"""
+        #Evaluate how well pieces coordinate with each other
         coordination_score = 0
         piece_positions = {'w': [], 'b': []}
 
@@ -1068,7 +1068,7 @@ class ChessAI:
         return coordination_score
             
     def evaluate_king_safety(self, board, king_pos, color, game_phase):
-        """Evaluate king safety based on position, pawn protection, and open lines"""
+        #Evaluate king safety based on position, pawn protection, and open lines
         if game_phase == 'endgame':
             return 0  # In endgame, king safety is less important
         king_row, king_col = king_pos
@@ -1113,7 +1113,7 @@ class ChessAI:
         return value
     
     def evaluate_center_control(self, board):
-        """Evaluate control over the center"""
+        #Evaluate control over the center
         value = 0
         
         # Define central squares
@@ -1163,7 +1163,7 @@ class ChessAI:
         return (white_center_control - black_center_control) * 2
     
     def count_attacks_on_square(self, board, row, col, color):
-        """Tæller hvor mange angreb en spiller har på et specifikt felt"""
+        #Tæller hvor mange angreb en spiller har på et specifikt felt
         count = 0
         for r in range(8):
             for c in range(8):
@@ -1256,7 +1256,7 @@ class ChessAI:
         if (color == 'w' and r == 7 and c in (6, 2)) or (color == 'b' and r == 0 and c in (6, 2)):
             score += self.KING_SAFETY_BONUS[color]['castled']
 
-        # Straf for åbne linjer
+        # Bonus for åbne linjer foran kongen
         for dc in [-1, 0, 1]:
             nc = c + dc
             if 0 <= nc < 8:
@@ -1281,7 +1281,7 @@ class ChessAI:
         return score
 
     def calculate_development(self, board, color):
-        """Calculate development score based on how many minor pieces have moved"""
+        #Calculate development score based on how many minor pieces have moved
         development_score = 0
         
         # Check development of knights and bishops
@@ -1301,7 +1301,7 @@ class ChessAI:
 
 
     def find_king(self, board, color):
-        """Find the king position for the given color"""
+        #Find the king position for the given color
         # Clear the cache to ensure fresh king position lookup
         self.king_positions_cache = {}
             
@@ -1316,7 +1316,7 @@ class ChessAI:
         return not any(self.get_all_moves(board, color) for color in ['w', 'b'])
 
     def is_in_check(self, board, color, king_pos=None):
-        """Check if the given color is in check"""
+        #Check if the given color is in check
         if king_pos is None:
             king_pos = self.find_king(board, color)
         if not king_pos:
@@ -1335,7 +1335,7 @@ class ChessAI:
         return False
 
     def get_all_moves(self, board, color):
-        """Get all legal moves for the given color, ensuring no moves leave the king in check"""
+        #Get all legal moves for the given color, ensuring no moves leave the king in check
         moves = []
         king_pos = self.find_king(board, color)
         if not king_pos:
@@ -1442,11 +1442,11 @@ class ChessAI:
 
         return moves
     def piece_value(self, piece, phase='middlegame'):
-        """Get the value of a piece based on the game phase"""
+        #Get the value of a piece based on the game phase
         return self.PIECE_VALUES[piece.name][phase]
 
     def get_position_value(self, name, r, c, is_endgame, color):
-        """Get the positional value of a piece based on its type and position"""
+        #Get the positional value of a piece based on its type and position
         if color == 'b':
             r = 7 - r  # Mirror the row for black pieces
         
@@ -1462,10 +1462,9 @@ class ChessAI:
         return table[r][c] if table else 0
 
     def is_checkmate(self, board, color):
-        """
-        Checks if the given color is in checkmate.
-        Returns True if in checkmate, False otherwise.
-        """
+        
+        #Checks if the given color is in checkmate. Returns True if in checkmate, False otherwise.
+        
         # First check if the king is in check
         king_pos = self.find_king(board, color)
         if not king_pos or not self.is_in_check(board, color, king_pos):
