@@ -6,6 +6,8 @@ import threading
 from alphabeta import ChessAI
 from skakPieces import Piece, Pawn, Rook, Knight, Bishop, Queen, King
 from copy import deepcopy
+import sys
+sys.setrecursionlimit(10000)
 
 # Skærmindstillinger
 WIDTH, HEIGHT = 650, 650
